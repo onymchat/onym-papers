@@ -1,0 +1,70 @@
+% Figure 1: Six-axis design-space diagram for §3.
+% Six axes radiate from a central origin, each labeled with its name
+% and a representative range of values. Selected configurations from
+% §5 are placed as labeled markers along the axes their values pin.
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[
+      axis/.style={->, thick, gray!70!black},
+      axislabel/.style={font=\footnotesize\bfseries, align=center},
+      valuelabel/.style={font=\scriptsize, gray!50!black, align=center},
+      cfg/.style={
+        circle, draw, fill=white, inner sep=1pt,
+        font=\scriptsize\bfseries, minimum size=4mm
+      },
+      depedge/.style={->, dashed, gray!60, thick},
+      scale=1.0, every node/.style={transform shape}
+    ]
+    % Six axes at 30°, 90°, 150°, 210°, 270°, 330° (rotated 30° so
+    % no axis lies horizontally — readability)
+    \def\axislen{2.6}
+    \foreach \angle/\name/\range in {%
+       30/{Anchor chain}/{Stellar, Eth L1, L2, Mina, Aztec},%
+       90/{SNARK system}/{Groth16, PLONK, Halo2, STARK, Plonky2/3},%
+      150/{Curve {\&} hash}/{BLS12-381, BN254, Pasta, Goldilocks},%
+      210/{PQ stance}/{Pairing, EC, Hash},%
+      270/{Trusted setup}/{Per-circuit, Universal, Transparent},%
+      330/{Verifier host}/{Native, Bytecode, Verifier-as-rollup}}{%
+        \draw[axis] (0,0) -- (\angle:\axislen);
+        \node[axislabel] at (\angle:\axislen+0.65) {\name};
+        \node[valuelabel] at (\angle:\axislen+1.35) {\range};
+    }
+    % Configurations placed near the dimension they most clearly pin.
+    % Positions chosen for legibility, not as quantitative claims.
+    \node[cfg]               (C1) at ( 30:1.2) {C1};
+    \node[cfg]               (C2) at ( 90:1.2) {C2};
+    \node[cfg]               (C3) at (150:1.2) {C3};
+    \node[cfg]               (C4) at (210:1.2) {C4};
+    \node[cfg]               (C5) at (270:1.2) {C5};
+    \node[cfg]               (C6) at (330:1.2) {C6};
+    \node[cfg, dashed]       (C7) at (  0:0.4) {C7};
+
+    % Origin marker
+    \fill[gray!60] (0,0) circle (1.2pt);
+
+    % Dependency arrows from §3.7: chain → host → curve → SNARK → setup.
+    % Drawn as a small inset chain at the figure's bottom.
+    \begin{scope}[shift={(-3.2,-3.6)}, font=\scriptsize]
+      \node[draw, rounded corners=2pt, inner sep=2pt] (C) {chain};
+      \node[draw, rounded corners=2pt, right=4mm of C, inner sep=2pt] (H) {host};
+      \node[draw, rounded corners=2pt, right=4mm of H, inner sep=2pt] (Cu) {curve};
+      \node[draw, rounded corners=2pt, right=4mm of Cu, inner sep=2pt] (S) {SNARK};
+      \node[draw, rounded corners=2pt, right=4mm of S, inner sep=2pt] (Se) {setup};
+      \draw[depedge] (C) -- (H);
+      \draw[depedge] (H) -- (Cu);
+      \draw[depedge] (Cu) -- (S);
+      \draw[depedge] (S) -- (Se);
+      \node[font=\tiny, gray!60!black, above=0.5mm of H, xshift=10mm]
+        {dependency chain (\S\ref{sec:dimensions-deps})};
+    \end{scope}
+  \end{tikzpicture}
+  \caption{Six design axes for metadata-hiding group registries with
+    SNARK-gated state changes. Configurations C1--C7
+    (\S\ref{sec:configurations}) are placed as markers near the axes
+    they most clearly pin; placements are illustrative rather than
+    quantitative. C7 (dashed) is the host-function-blocked
+    hypothetical. The inset chain at the bottom shows the §3.7
+    dependency direction: fixing the anchor chain transitively
+    constrains four of the six axes.}
+  \label{fig:axes}
+\end{figure}

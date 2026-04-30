@@ -1,0 +1,39 @@
+\begin{table*}[t]
+  \centering
+  \caption{Per-verification cost. C1 row generated from
+    \texttt{benchmarks/c1/results.json}; the C1 deployment is
+    \emph{five Soroban contracts} (one verifying-key family per
+    contract) and per-contract sub-rows are reported. Other rows
+    cited. USD anchored to 2026-04 fee market and XLM/ETH/SOL spot
+    rates; cells marked TBD pending the §4 measurement-pass
+    refresh.}
+  \label{tab:cost}
+  \begin{tabular}{llrrr}
+    \toprule
+    & Configuration & Native unit & USD (2026-04) & Source \\
+    \midrule
+    C1            & Stellar + BLS12-381 + PLONK (aggregate)          & TBD stroops      & TBD & this work \\
+    \quad C1.1    & \quad contract 1                                  & TBD stroops      & TBD & this work \\
+    \quad C1.2    & \quad contract 2                                  & TBD stroops      & TBD & this work \\
+    \quad C1.3    & \quad contract 3                                  & TBD stroops      & TBD & this work \\
+    \quad C1.4    & \quad contract 4                                  & TBD stroops      & TBD & this work \\
+    \quad C1.5    & \quad contract 5                                  & TBD stroops      & TBD & this work \\
+    \midrule
+    C2  & Ethereum L1 + BN254 + Groth16            & ${\sim}220$K gas$^\star$ & TBD & \cite{pertsev-2019-tornado,semaphore-2024} \\
+    C3  & Aztec + UltraPlonk                       & TBD gas (L2)             & TBD & \cite{aztec-2024} (TODO: pin version) \\
+    C4  & Mina + Pickles                           & TBD                      & TBD & TODO §4 cite \\
+    C5  & L2 + Plonky2 + KZG/BN254                 & TBD gas                  & TBD & TODO §4 cite \\
+    C6  & STARK + Goldilocks                       & TBD gas                  & TBD & \cite{ben-sasson-2018-stark} (TODO: pin StarkNet pricing source) \\
+    C7$^\dagger$ & Stellar + Plonky3 + FRI (hypothetical) & TBD WASM CPU instr.\ & TBD & §6.\ref{sec:migration} analysis \\
+    \bottomrule
+  \end{tabular}
+  \\[0.5em]
+  \footnotesize
+  $^\star$ C2 native-unit estimate is the canonical Tornado-shaped
+  Groth16 verifier on Ethereum L1 (one BN254 pairing precompile call
+  + one G1 MSM); the precise cell will be refreshed at the §4
+  measurement pass once the deployed verifier instance is fixed.\\
+  $^\dagger$ C7 is not deployed; the cell is a model estimate
+  representing a pure-WASM verifier on Stellar without FRI host
+  functions. See \S\ref{sec:migration}.
+\end{table*}
