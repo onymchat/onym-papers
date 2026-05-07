@@ -3,22 +3,29 @@
   \caption{Prover wall-clock for the canonical advancement relation
     at the medium ring size (64 members for systems with a member
     notion). Single-threaded baseline on commodity x86\_64. The C1
-    row is the median across the five contracts of the C1
-    deployment; per-contract numbers are in
-    \texttt{benchmarks/c1/results.json}. Cells marked TBD pending
-    the §4 measurement-pass refresh.}
+    row is the median across the five contracts of the C1 deployment;
+    the C7 row is bench-scope only (FRI low-degree test alone, no
+    PCS-tied AIR) on the feasibility branch. Cells marked TBD pending
+    a per-call instrumentation pass; the §4 bench harness today
+    reports coarse \texttt{wall\_clock\_ms\_total} per contract and
+    the §6 PQ harness's prover is bench-only.}
   \label{tab:prover-time}
   \begin{tabular}{lr}
     \toprule
     Configuration & Prover wall-clock \\
     \midrule
     C1  & TBD ms (median across 5 contracts; harness in App.\ \ref{app:bench}) \\
-    C2  & TBD ms (cited) \\
-    C3  & TBD ms \\
-    C4  & TBD ms \\
-    C5  & TBD ms \\
-    C6  & TBD ms \\
-    C7$^\dagger$ & TBD ms (model) \\
+    C2  & ${\sim}1$--$3$~s (Tornado-shape, single-thread, cited)$^\dagger$ \\
+    C3  & ${\sim}5$--$30$~s (UltraPlonk, application-defined)$^\dagger$ \\
+    C4  & ${\sim}10$~s+ (Pickles recursion baseline)$^\dagger$ \\
+    C5  & ${\sim}1$--$10$~s (Plonky2 inner; outer wrap adds ${\sim}500$~ms) \\
+    C6  & ${\sim}1$--$5$~s (STARK over Goldilocks at medium AIR)$^\dagger$ \\
+    C7  & TBD ms (bench-scope FRI only; PCS-tied prover is open work) \\
     \bottomrule
   \end{tabular}
+  \\[0.5em]
+  \footnotesize
+  $^\dagger$ Cited bands; uniform-hardware re-measurement is out of
+  scope for this SoK. The bands are sufficient to support the
+  qualitative ordering in \S\ref{sec:analysis-prover}.
 \end{table}

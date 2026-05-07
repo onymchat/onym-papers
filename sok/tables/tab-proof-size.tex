@@ -2,11 +2,14 @@
   \centering
   \caption{Proof size. Pairing-based Groth16 proofs are constant-size
     (192~B with BLS12-381, 128~B with BN254); PLONK with KZG sits at
-    $\sim$700~B on BLS12-381; Halo2 and recursive schemes grow into
-    the multi-KB range; FRI-based proofs are the largest. The C1
-    row reports a single value because PLONK proof size depends on
-    the construction and curve, not on the verifying-key family ---
-    all thirty C1 verifying keys produce proofs of the same size.}
+    $\sim$700~B on BLS12-381; recursive schemes grow into the
+    multi-KB range; FRI-based proofs are the largest. The C1 row
+    reports a single value because PLONK proof size depends on the
+    construction and curve, not on the verifying-key family --- all
+    thirty C1 verifying keys produce proofs of the same wire size.
+    The C7 row reports the bench-scope FRI proof size measured on
+    the feasibility branch (low-degree test alone); a production
+    PCS-tied FRI proof would land in C6's band.}
   \label{tab:proof-size}
   \begin{tabular}{lr}
     \toprule
@@ -18,7 +21,7 @@
     C4  & ${\sim}10\text{--}20$ KB (Pickles, recursion overhead) \\
     C5  & ${\sim}50\text{--}100$ KB (Plonky2 + outer KZG wrap) \\
     C6  & ${\sim}50\text{--}200$ KB (FRI) \\
-    C7$^\dagger$ & ${\sim}50\text{--}200$ KB (model, FRI-shaped) \\
+    C7  & ${\sim}8$ KB (bench-scope, FRI low-degree test only)$^{\sharp}$ \\
     \bottomrule
   \end{tabular}
   \\[0.5em]
@@ -28,5 +31,9 @@
   shape~\cite{gabizon-2019-plonk}; production variants
   (TurboPlonk, Plonkup, jellyfish-PLONK) are similar order of
   magnitude with constant-factor differences from custom-gate and
-  lookup overhead.
+  lookup overhead.\\
+  $^{\sharp}$ Measured against the feasibility-branch prover with
+  parameters $\log n=6$, $3$ FRI layers, $8$ queries, blow-up $2$;
+  a production-shape PCS-tied FRI proof at the same security level
+  would land in the $50$--$200$~KB band of C6.
 \end{table}

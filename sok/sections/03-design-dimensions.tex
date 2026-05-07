@@ -165,17 +165,22 @@ runs in the chain's general-purpose bytecode. Three regimes:
     surveyed.}
 \end{enumerate}
 
-This axis is the binding constraint that makes the
-``Stellar~+~Plonky3~+~FRI'' configuration in
-\S\ref{sec:configurations} hypothetical. Stellar's
+This axis is the binding economic constraint that
+shapes the ``Stellar~+~hash-based'' configuration C7 in
+\S\ref{sec:configurations} and \S\ref{sec:cfg-c7}. Stellar's
 host-function set covers pairings on BLS12-381 and BN254 and
 Poseidon-arithmetization permutations~\cite{stellar-cap-0075}, but
 not the FRI stack: CAP-0075's rationale explicitly scopes out NTT,
 Goldilocks-field arithmetic, and FRI primitives. A transparent-setup
-PQ-secure verifier on Stellar would therefore run in pure bytecode
-for its FRI-specific operations and incur orders-of-magnitude higher
-gas. The same constraint forces Ethereum L1 deployments toward BN254
-over BLS12-381 in the absence of EIP-2537.
+hash-based verifier on Stellar therefore runs in pure WASM for its
+FRI-specific operations, including Merkle-authentication-path
+traversal and the low-degree-test fold loop. The empirical
+deploy-cost ratio of $\sim$590$\times$ between C7 and C1
+(\S\ref{sec:cfg-c7}) is the load-bearing measurement: the
+host-function gap is not a binary deployable / undeployable
+classification but an economic gradient that biases sharply against
+hash-based deployments. The same constraint forces Ethereum L1
+deployments toward BN254 over BLS12-381 in the absence of EIP-2537.
 
 \subsection{Cross-axis dependencies}
 \label{sec:dimensions-deps}

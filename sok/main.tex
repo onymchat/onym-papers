@@ -75,27 +75,52 @@
 \section{Benchmark harness}
 \label{app:bench}
 
-The first-party measurements in row C1 of \S\ref{sec:analysis} are
-produced by the harness at \texttt{benchmarks/c1/} in this paper's
-source tree. The C1 deployment under measurement consists of
-\emph{five Soroban contracts}, one policy per contract, with each
-contract holding two relations (membership and update) compiled at
-three circuit-size tiers; all thirty verifying keys derive from a
-single SRS --- the Ethereum Foundation KZG Summoning
-Ceremony~\cite{eth-kzg-ceremony} --- whose provenance is hash-chained
-through the build (\S\ref{sec:cfg-c1}). The harness measures each
-contract independently; the §4 tables aggregate per-contract numbers
-into the C1 row, and expose per-contract sub-rows in the cost table
-where the variation across contracts is load-relevant.
-\texttt{methodology.md} documents the measurement contract (what is
-and is not timed; hardware and software pinning; the per-contract
-\texttt{results.json} schema; the SRS-pinning hash chain).
-\texttt{run.sh} iterates over the five contracts, executes their
-provers and a Soroban verify call, and writes \texttt{results.json},
-which the table cells in Tables~\ref{tab:cost}--\ref{tab:pq} consume
-via generated \texttt{.tex} snippets. Per-call sampling
-instrumentation within a single proof is deferred pending a
-dedicated benchmark binary; the current harness reports a coarse
-\texttt{wall\_clock\_ms\_total} per contract.
+The first-party measurements in this paper come from two harnesses
+in this paper's source tree:
+
+\begin{description}
+  \item[\texttt{benchmarks/c1/} --- the C1 (PLONK) harness.] The C1
+    deployment under measurement consists of \emph{five Soroban
+    contracts}, one policy per contract, with each contract holding
+    two relations (membership and update) compiled at up to three
+    circuit-size tiers; all verifying keys derive from a single SRS
+    --- the Ethereum Foundation KZG Summoning
+    Ceremony~\cite{eth-kzg-ceremony} --- whose provenance is
+    hash-chained through the build (\S\ref{sec:cfg-c1}). The numbers
+    populating Table~\ref{tab:cost}'s C1 sub-rows are extracted from
+    the published \texttt{onymchat/onym-contracts} testnet release
+    body for tag \texttt{v0.0.5} (captured 2026-05-02), via the
+    extraction script \texttt{benchmarks/c1/extract.sh}. The release
+    body's JSONL companion (\texttt{gas-benchmarks-v0.0.5.jsonl})
+    carries the full \texttt{fee\_charged} breakdown
+    (resource / non-refundable / refundable) per op-row;
+    \texttt{methodology.md} documents the measurement contract
+    (what is and is not timed; hardware and software pinning; the
+    per-contract \texttt{results.json} schema; the SRS-pinning hash
+    chain). Per-call sampling instrumentation within a single proof
+    is deferred pending a dedicated benchmark binary; the current
+    harness reports a coarse \texttt{wall\_clock\_ms\_total} per
+    contract.
+
+  \item[\texttt{benchmarks/c7/} --- the C7 (FRI feasibility)
+    harness.] The C7 row is measured against a Stellar-testnet
+    deployment of the FRI-style verifier from the
+    \texttt{wt-pq-fri-feasibility} branch of the
+    \texttt{onym-contracts} repository. The numbers populating
+    Table~\ref{tab:cost}'s C7 rows are extracted from the
+    \texttt{scripts/bench-gas/results-pq.\{md,jsonl\}} pair produced
+    by \texttt{scripts/bench-gas/run-pq.sh} on that branch (captured
+    2026-05-02), via \texttt{benchmarks/c7/extract.sh}. Only deploy
+    and admin operations measure end-to-end on the feasibility
+    branch; \S\ref{sec:cfg-c7} discusses why proof-bearing rows do
+    not.
+\end{description}
+
+The two harnesses' extraction scripts are independent: \texttt{c1}
+parses the public GitHub release body; \texttt{c7} parses a JSONL
+file produced by a re-run of the contracts-repo benchmark driver.
+\texttt{benchmarks/README.md} documents both flows step-by-step,
+including how to refresh the cells if the contracts repo cuts a new
+release.
 
 \end{document}

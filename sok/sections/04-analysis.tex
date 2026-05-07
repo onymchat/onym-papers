@@ -7,30 +7,45 @@ configurations are referred to throughout by their table-row label
 (C1 through C7) before they are formally introduced in
 \S\ref{sec:configurations}; readers wanting the full descriptions
 should jump ahead. Each table draws claims at one of two confidence
-levels: the row labeled C1 (Stellar~+~BLS12-381~+~PLONK) is
-generated from a first-party benchmark harness whose methodology is
-specified in Appendix~\ref{app:bench} and whose source lives in this
-paper's source tree under \texttt{benchmarks/c1/}; the C1 deployment
-under measurement comprises five Soroban contracts whose verifying
-keys all derive from a single SRS reused from the Ethereum
-Foundation KZG ceremony~\cite{eth-kzg-ceremony}, and the harness
-reports per-contract numbers. The aggregate C1 row in each comparison table
-summarizes the five-contract distribution; per-contract sub-rows are
-available in the cost table where the variation across contracts is
-load-relevant. Rows C2--C6 cite published numbers attributed inline;
-row C7 is a hypothetical configuration whose cells are model
-estimates derived in \S\ref{sec:migration}, included precisely to
-make the host-function constraint legible. All USD figures are
-anchored to 2026-04 fee-market and spot-rate conditions; reviewers
-wanting contemporary numbers should re-run the harness and re-cite.
+levels:
+
+\begin{itemize}
+  \item The row labeled C1 (Stellar~+~BLS12-381~+~PLONK) is
+    generated from a first-party benchmark harness whose methodology
+    is specified in Appendix~\ref{app:bench} and whose source lives
+    in this paper's source tree under \texttt{benchmarks/c1/}; the
+    C1 deployment under measurement comprises five Soroban contracts
+    whose verifying keys all derive from a single SRS reused from
+    the Ethereum Foundation KZG
+    ceremony~\cite{eth-kzg-ceremony}, and the harness reports
+    per-contract numbers. The aggregate C1 row in each comparison
+    table summarizes the five-contract distribution; per-contract
+    sub-rows are available in the cost table where the variation
+    across contracts is load-relevant.
+  \item The row labeled C7 (Stellar~+~hash-based, feasibility branch)
+    is also first-party measured, on the same testnet, but at a
+    feasibility-only scope: deploy and admin operations measured
+    end-to-end; the proof-bearing operations are pending PCS-tied
+    prover work. The feasibility harness exists at
+    \texttt{benchmarks/c7/}; \S\ref{sec:cfg-c7} discusses what the
+    deploy-cost ratio of 590$\times$ tells us about the
+    host-function gap and what the missing PCS layer prevents us
+    from learning.
+\end{itemize}
+
+Rows C2--C6 cite published numbers attributed inline. All USD
+figures are anchored to 2026-05 fee-market and spot-rate conditions;
+reviewers wanting contemporary numbers should re-run the harnesses
+and re-cite (\S\ref{app:bench}, \S\ref{sec:cfg-c7}).
 
 \subsection{Verification cost}
 \label{sec:analysis-cost}
 
-Table~\ref{tab:cost} summarizes verification cost. Cells are placed
-at TBD pending the §4 measurement-pass refresh; the structural claims
-the table is designed to support are stable, and so we describe them
-in prose:
+Table~\ref{tab:cost} summarizes verification cost. The C1 sub-rows
+are populated from the Stellar testnet release \texttt{v0.0.5}
+benchmark harness; the C7 deploy and admin rows are populated from
+the feasibility-branch harness on the same testnet. The structural
+claims the table supports:
 
 \begin{itemize}
   \item \textbf{Native pairing precompiles dominate the cheap end.}
@@ -40,7 +55,12 @@ in prose:
     runs the same primitives in pure bytecode. The Stellar
     BLS12-381 pairing host function~\cite{stellar-cap-0059} and the
     Ethereum BN254 pairing precompile (EIP-197) are the components
-    that dominate this regime.
+    that dominate this regime. C1 \texttt{verify\_membership} lands
+    at \textasciitilde 79K stroops ($\sim$\$0.003 at the 2026-05
+    XLM/USD anchor); C2's BN254-Groth16 verify on Ethereum L1 is
+    one-to-two orders of magnitude more expensive in USD even after
+    the precompile, dominated by L1 fee-market pressure rather than
+    by the verifier shape.
   \item \textbf{Universal updatable schemes carry verifier overhead.}
     PLONK-family verifiers require multiple $\mathbb{G}_1$ and
     $\mathbb{G}_2$ multi-scalar multiplications beyond the pairing
@@ -53,14 +73,25 @@ in prose:
     native scalar-mul calls --- but is not eliminated; the C1 row
     sits in the cheap regime, just at a constant-factor disadvantage
     relative to a hypothetical Groth16-on-Stellar configuration.
-  \item \textbf{Transparent-setup configurations on
-    non-FRI-friendly chains are dominated.} C7 (the hypothetical
-    Stellar~+~Plonky3~+~FRI) would require a pure-WASM FRI verifier
-    on Stellar, with verification cost dominated by Merkle-path
-    hashing and field arithmetic that the BLS12-381 host functions
-    do not accelerate. The configuration is included in the table to
-    document the host-function gap, not as a viable production
-    target.
+    Within the five C1 contracts, \texttt{verify\_membership}
+    varies by less than 1\% across the 5 verifying-key families
+    (78,983--79,168 stroops), confirming that the
+    universal-SRS-shared verifier shape dominates over per-relation
+    constraint-count differences in the on-chain measurement.
+  \item \textbf{Transparent-setup configurations on chains without
+    FRI host functions are deployable but expensive.} C7 deploys a
+    pure-WASM FRI low-degree-test verifier on Stellar at $1.72$~XLM
+    (\textasciitilde\$0.69 USD), a $\sim$590$\times$ multiplier over
+    C1's deploy. The deploy-cost ratio is dominated by the verifier
+    contract's bytecode footprint --- the Poseidon2 host primitive
+    added by Stellar's CAP-0075~\cite{stellar-cap-0075} closes the
+    in-circuit-hash sub-gap but does not amortize the
+    Merkle-authentication, FRI-folding, or transcript-bookkeeping
+    sub-gaps, which collectively dominate the verifier WASM. The
+    proof-bearing entrypoints' steady-state cost is pending PCS-tied
+    prover work; deploy is the only first-party measurement, but is
+    sufficient to refine the §3.6 framing of the
+    host-function constraint from binary to gradient.
 \end{itemize}
 
 \input{tables/tab-cost-comparison}
@@ -181,13 +212,19 @@ Across all five tables, the configurations group into three regimes:
 \emph{cheap pairing-based with native host functions} (C1, C2),
 \emph{moderate-cost universal-updatable on chains with sequencers}
 (C3, C5), and \emph{post-quantum-ready transparent} (C6 and the
-blocked C7). The cheap-and-PQ-ready cell is empty along the
-operationally-relevant censorship-resistance and decentralization
-axes: C6 anchored on StarkNet does combine FRI-friendly host
-functions with hash-based PQ security at competitive cost on the L2
-itself, but StarkNet's centralized prover and sequencer place the
-configuration outside the §7.3 censorship-resistance profile and
-outside the validator-set tier of C2. The cell that is actually
-empty is therefore \emph{cheap, PQ-ready, and decentralized to a
-tier comparable with C1 or C2}; the open problems of
-\S\ref{sec:open} make the precise shape of the gap explicit.
+empirically-quantified C7). The cheap-and-PQ-ready cell is empty
+along the operationally-relevant censorship-resistance and
+decentralization axes: C6 anchored on StarkNet does combine
+FRI-friendly host functions with hash-based PQ security at
+competitive cost on the L2 itself, but StarkNet's centralized prover
+and sequencer place the configuration outside the §7.3
+censorship-resistance profile and outside the validator-set tier of
+C2. C7 inhabits the same Stellar SCP validator tier as C1 and is
+post-quantum-ready, but pays a measured $\sim$590$\times$ deploy
+multiplier and is gated on a PCS layer for proof-bearing entrypoints.
+The cell that is actually empty is therefore \emph{cheap, PQ-ready,
+and decentralized to a tier comparable with C1 or C2}; the
+\S\ref{sec:cfg-c7} measurement \emph{quantifies} how far C7 sits
+from filling that cell rather than only \emph{describing} the
+distance. The open problems of \S\ref{sec:open} discuss the
+host-function and tooling moves that would close the gap.

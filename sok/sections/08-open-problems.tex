@@ -49,12 +49,22 @@ deployments well; what it does not track is the FRI stack.
 primitives, Goldilocks-field arithmetic, and FRI-related operations,
 on the grounds that exposing permutation primitives over the
 existing scalar fields is more flexible than introducing a new field
-arithmetic. The decision is defensible in isolation but it leaves
-the FRI configurations (C6, C7) with no host-function support on the
-chain. The right ABI for a chain that wants to support both
-pairing-based and FRI-based SNARKs simultaneously is itself an open
-design question, and surveys of which primitives are most reusable
-across SNARK families are currently missing from the literature.
+arithmetic. The decision is defensible in isolation, but the
+feasibility benchmark of \S\ref{sec:cfg-c7} now quantifies its
+deployment cost: a FRI-style verifier deployed on Stellar today pays
+$\sim$590$\times$ C1's deploy footprint in WASM bytecode. The
+empirical decomposition of where the cost lands ---
+Merkle-authentication-path traversal and FRI-folding loops dominate;
+the in-circuit-hash sub-gap is closed by Poseidon2 host functions
+but the field-arithmetic and NTT sub-gaps are not --- gives
+host-ABI designers a concrete prioritization for which primitives
+would most amortize the gap. The right ABI for a chain that wants to
+support both pairing-based and FRI-based SNARKs simultaneously is
+itself an open design question, and surveys of which primitives are
+most reusable across SNARK families are currently missing from the
+literature; \S\ref{sec:cfg-c7}'s
+sub-gap-by-sub-gap decomposition is one input to the design but not a
+substitute for the survey.
 
 \paragraph{(4) Transparent setup with pairing-friendly verification.}
 Every pairing-based SNARK in current production deployment requires a

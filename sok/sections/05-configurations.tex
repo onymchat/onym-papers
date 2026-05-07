@@ -12,16 +12,19 @@ discusses migration paths between configurations;
 Section~\ref{sec:recommendations} maps deployment profiles to them.
 
 Six of the seven (C1--C6) are deployable today on the chain named in
-their first axis. C7 is included as an undeployable point: the
-configuration is cryptographically defined and supported by mature
-proving libraries, but is blocked at the host-function layer of its
-named anchor. We retain C7 in the catalogue rather than relegate it
-to the §6 migration discussion alone because it is the
-shortest-distance witness to the host-function axis being a
-binding constraint independent of the other five axes; without C7,
-the §3 dependency analysis would lack a direct visible counterexample
-to the assumption that a transparent-setup PQ-ready SNARK can be
-deployed wherever the underlying construction is mature.
+their first axis. C7 occupies a more nuanced position than earlier
+drafts of this paper described: a hash-based FRI-style verifier
+\emph{is} deployable on Stellar today, with all SNARK-specific work
+running in pure WASM bytecode, but at deployment cost
+$\sim$590$\times$ the cost of C1 (\S\ref{sec:cfg-c7},
+\S\ref{sec:analysis-cost}); the proof-bearing entrypoints are
+additionally blocked on the prover side by a missing PCS layer
+tying FRI to an AIR. We retain C7 in the catalogue because it is
+the shortest-distance witness to the host-function axis being a
+binding \emph{economic} constraint, and because the empirical
+deploy-cost ratio sets a quantitative floor on the host-function
+gap that earlier structural arguments could only describe
+qualitatively.
 
 \subsection{C1 --- Stellar + BLS12-381 + PLONK + Poseidon}
 \label{sec:cfg-c1}
@@ -224,29 +227,63 @@ and a deployable verification host. Proof sizes 50--200~KB
 (Table~\ref{tab:proof-size}) are the dominant cost; verification
 cost is moderate on FRI-aware anchors and prohibitive elsewhere.
 
-\subsection{C7 --- Stellar + Plonky3 + FRI (hypothetical, blocked)}
+\subsection{C7 --- Stellar + FRI-style hash-based (feasibility branch)}
 \label{sec:cfg-c7}
 
-\textbf{Axes.} Anchor chain: Stellar. SNARK: Plonky3 / FRI. Curve / hash:
-Goldilocks / Poseidon2 (no curve at the verification layer). PQ
-stance: hash-based, conjectured PQ-secure. Trusted setup: transparent.
-Verification host: \textbf{none} --- Stellar Protocol 22 added
-BLS12-381 host functions but no FRI host functions, no
-NTT host function, and no Goldilocks-arithmetic host function. A
-verifier for this configuration would run in pure WASM, with FRI
-folding and Merkle-path verification interpreted at WASM-level cost.
+\textbf{Axes.} Anchor chain: Stellar. SNARK: a FRI low-degree-test
+verifier in the Plonky3 lineage, with the field choice pivoted from
+Goldilocks to BN254~$\mathbb{F}_r$ during the feasibility study so
+that the Poseidon2-over-BN254 host primitive added in Stellar
+Protocol~25~\cite{stellar-cap-0075} could carry the in-circuit hash
+without bytecode overhead. Curve / hash: BN254 scalar field /
+Poseidon2-W16 sponge (host primitive) plus binary Merkle
+authentication paths. PQ stance: hash-based, conjectured PQ-secure
+(soundness reduces to collision-resistance of Poseidon2 with the
+Horizen Labs canonical parameter set). Trusted setup: transparent.
+Verification host: \textbf{partial} --- the in-circuit hash uses the
+CAP-0075 Poseidon2 primitive, but FRI folding, the low-degree-test
+loop, NTT, and Merkle-path traversal all run in pure WASM. The
+field-choice pivot to BN254~$\mathbb{F}_r$ (away from the canonical
+Plonky3 Goldilocks choice) is what makes deploy possible at all, by
+sidestepping the missing Goldilocks-arithmetic host function;
+small-field FRI's prover-time advantage is given up in exchange.
 
-\textbf{Relations.} Identical in shape to C1 (a membership and update
-pair) but realized in a Plonky3-style transparent-setup circuit.
+\textbf{Relations.} Intended to mirror C1 (a membership and update
+pair). \emph{Caveat as measured}: at the time of the feasibility
+benchmark the on-chain verifier accepts only a FRI low-degree-test
+proof, with no batched-PCS layer tying FRI commitments to an AIR.
+The proof-bearing entrypoints (\texttt{create\_group},
+\texttt{verify\_membership}, \texttt{update\_commitment}) therefore
+do not yet measure end-to-end; the prover-side PCS work is the
+gating dependency, not a host-function gap.
 
-\textbf{Fit summary.} Included in the catalogue not as a deployment
-target but as the visible point that makes the host-function axis
-binding. Pure-WASM verification of FRI on Stellar is estimated
-at one to two orders of magnitude more expensive than C1 in
-verification gas (Table~\ref{tab:cost}, model entry); in proof size
-it matches C6. The configuration becomes deployable only under the
-host-function gap-closing scenarios in
-\S\ref{sec:migration}.
+\textbf{Fit summary.} Empirical: deploy at 17{,}196{,}133 stroops
+(\textasciitilde 1.72~XLM), a $\sim$590$\times$ multiplier over C1's
+\textasciitilde 29{,}000-stroop deploy. The deploy-cost ratio is the
+on-chain WASM bytecode footprint of the FRI verifier --- Merkle-path
+verification, transcript bookkeeping, low-degree-test fold loops ---
+that the Poseidon2 host primitive alone does not amortize. Read-only
+admin operations on the deployed contract complete at PLONK-flavor
+parity (\textasciitilde 12K stroops for \texttt{set\_restricted\_mode},
+matching C1 within $\sim$5\%) because they do not exercise the FRI
+machinery. Verification cost for the proof-bearing operations is
+estimated to be in the same one-to-two-orders-of-magnitude band over
+C1, but \emph{is not yet measured} pending PCS-tied prover work; the
+deploy-cost row is the sole row this paper measures first-party. In
+proof size, an extracted bench-scope FRI proof is $\sim$8~KB; the
+production-shape PCS-tied FRI proof would land in the
+\textasciitilde 50--200~KB band of C6.
+
+The empirical deploy-cost finding refines the §3.6 framing: the
+host-function constraint on Stellar is not binary
+(``deployable / not''), it is a $\sim$590$\times$-on-deploy economic
+gradient that biases against hash-based deployments at every
+contract install while leaving steady-state read-only ops competitive.
+The pivot from Goldilocks to BN254~$\mathbb{F}_r$ reveals a deeper
+structural point: \emph{the Poseidon2 host primitive added by
+CAP-0075 closes the in-circuit-hash sub-gap of FRI but not the
+field-arithmetic, NTT, or Merkle-path sub-gaps,} and the latter
+dominate the verifier's WASM-bytecode footprint.
 
 \subsection{Configurations not in the catalogue}
 

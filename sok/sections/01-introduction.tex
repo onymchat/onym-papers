@@ -40,26 +40,37 @@ contribution is a taxonomy and a set of measurements taken against
 that taxonomy, with one caveat about measurement scope:
 
 \begin{itemize}
-  \item For all configurations except one, we cite published
+  \item For all configurations except two, we cite published
     benchmark numbers and date-stamp them. We do not re-measure
     third-party systems on uniform hardware; uniform-hardware
     re-measurement of every cell would be a separate paper, and we
     believe the available cited numbers are sufficient for the
     cross-configuration comparisons we draw.
-  \item For the Stellar~+~BLS12-381~+~PLONK row, we run a
-    first-party benchmark harness (\S\ref{sec:analysis},
-    appendix). The C1 deployment under measurement consists of five
-    Soroban contracts (one per policy) deriving all of their
-    verifying keys from a single trusted-setup parameter --- the
-    Ethereum Foundation KZG Summoning
+  \item For the Stellar~+~BLS12-381~+~PLONK row (C1), we run a
+    first-party benchmark harness on Stellar testnet
+    (\S\ref{sec:analysis}, appendix). The C1 deployment under
+    measurement consists of five Soroban contracts (one per policy)
+    deriving all of their verifying keys from a single trusted-setup
+    parameter --- the Ethereum Foundation KZG Summoning
     Ceremony~\cite{eth-kzg-ceremony} --- whose provenance is
     hash-chained from the published transcript through to each
-    contract's WASM bytecode (\S\ref{sec:cfg-c1}). The harness
-    measures each contract independently and the C1 row aggregates
-    them. One row of every comparison table is therefore
-    authoritative under our own measurement protocol; the rest are
-    cited.
+    contract's WASM bytecode (\S\ref{sec:cfg-c1}).
+  \item For the Stellar~+~hash-based row (C7), we additionally run a
+    \emph{feasibility-branch} measurement of a FRI-style verifier
+    deployed on the same testnet, with all SNARK-specific work in
+    pure WASM bytecode (no FRI host functions exist on Stellar at
+    the time of writing). The measurement exists to quantify
+    \emph{empirically} the host-function gap that earlier drafts of
+    this paper described only structurally; \S\ref{sec:cfg-c7}
+    reports both the rows that completed (deploy, admin) and those
+    that did not (proof-bearing entrypoints, blocked at the prover
+    side on a missing PCS layer rather than at the verifier side).
 \end{itemize}
+
+Two rows of every comparison table are therefore authoritative under
+our own measurement protocol --- the cheap pairing-based extreme and
+the empirically-quantified host-function-blocked extreme; the rest
+are cited.
 
 We do not argue that any one configuration is the right configuration.
 The recommendations in \S\ref{sec:recommendations} are conditional on

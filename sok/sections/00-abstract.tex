@@ -12,21 +12,29 @@ chain, SNARK system, curve and in-circuit hash, post-quantum stance,
 trusted-setup model, and verification host --- under a threat model
 admitting Byzantine provers, passive observers including validators,
 and side-channel observers, and we analyze seven concrete configurations
-across five comparison dimensions. The
-Stellar~+~BLS12-381~+~PLONK configuration --- a five-contract
-deployment whose trusted setup is reused from the Ethereum
-Foundation KZG ceremony --- is measured by a first-party benchmark
-harness whose methodology is documented in the paper's source
-repository; all other configurations cite published
-benchmarks date-stamped to 2026-04. Our central finding is that no
-configuration dominates: four deployment profiles ---
-cost-optimized, post-quantum-prioritized, censorship-resistance-prioritized,
-and jurisdiction-constrained --- each select a different point in the
+across five comparison dimensions. \emph{Two} of the seven
+configurations carry first-party measurements: the
+Stellar~+~BLS12-381~+~PLONK production deployment (C1, five Soroban
+contracts whose universal SRS is reused from the Ethereum Foundation
+KZG ceremony), and a feasibility-branch
+Stellar~+~hash-based-FRI-style configuration (C7) measured on the
+same testnet to quantify the host-function gap empirically; the
+remaining configurations cite published benchmarks date-stamped to
+2026-05. Our central empirical finding is that
+the FRI-style verifier on Stellar deploys today at $\sim$590$\times$
+the WASM-bytecode footprint of the PLONK verifier (17.2~M vs
+$\sim$29~K stroops at deploy; proof-bearing entrypoints not yet
+measurable end-to-end pending a PCS-tied prover), turning the
+host-function gap from a blocking constraint into an economic one.
+Our central design finding is that no configuration dominates: four
+deployment profiles --- cost-optimized,
+post-quantum-prioritized, censorship-resistance-prioritized, and
+jurisdiction-constrained --- each select a different point in the
 design space, and one (the jurisdiction-constrained profile) is not
 served by any surveyed configuration. We accompany the taxonomy with
 a migration-path catalogue that classifies each PQ-ward transformation
-as ready, blocked on chain host functions, blocked on tooling maturity,
-or open in cryptographic construction; the
-cheap-PQ-ready-and-decentralized cell of the design space is currently
-empty.
+as ready, blocked on chain host functions (now refined to
+\emph{economically blocked}), blocked on tooling maturity, or open in
+cryptographic construction; the cheap-PQ-ready-and-decentralized cell
+of the design space is currently empty.
 \end{abstract}

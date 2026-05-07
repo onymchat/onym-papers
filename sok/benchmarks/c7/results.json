@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "source": "onym-contracts wt-pq-fri-feasibility branch, scripts/bench-gas/results-pq.jsonl",
+  "extracted": "2026-05-06T20:21:38.213249+00:00",
+  "contract_address": "CCTZOUBXVCYDQE4TJGSR3DSLJRSJW2VIBJRSFKJOMLKQEKMFTJQKVCPA",
+  "op_count_total": 7,
+  "op_count_measurable": 3,
+  "op_count_unmeasurable": 4,
+  "unmeasurable_ops": [
+    "create_group",
+    "verify_membership",
+    "update_commitment",
+    "bump_group_ttl"
+  ],
+  "measured": {
+    "deploy_stroops": 17196133,
+    "set_restricted_mode_on_stroops": 12291,
+    "set_restricted_mode_off_stroops": 8021
+  },
+  "pending_pcs_layer": {
+    "create_group_stroops": null,
+    "verify_membership_stroops": null,
+    "update_commitment_stroops": null,
+    "note": "These rows currently emit null because the on-chain verifier accepts a FRI low-degree-test proof but no batched-PCS layer binds those FRI commitments to an AIR. Re-run the upstream bench when pq/verifier/src/lib.rs lands the PCS work."
+  },
+  "rows": [
+    {
+      "contract": "pq-sep-anarchy",
+      "op": "deploy",
+      "tier": "n/a",
+      "fee_stroops": 17196133,
+      "tx_hash": "7d693108733a9173b349b1fbcfcde67077c26f096739053a04679d1309d3403c",
+      "measurable": true
+    },
+    {
+      "contract": "pq-sep-anarchy",
+      "op": "set_restricted_mode",
+      "tier": "n/a",
+      "fee_stroops": 12291,
+      "tx_hash": "700d0093f63546342ef9f12829f6f5802f440f05ddd6c3cc56cdce3457190044",
+      "measurable": true
+    },
+    {
+      "contract": "pq-sep-anarchy",
+      "op": "set_restricted_mode",
+      "tier": "n/a",
+      "fee_stroops": 8021,
+      "tx_hash": "7e61d37be59abe94604ebaa5833739a170340e9c8ff7aaee14a67200e1bd2448",
+      "measurable": true
+    },
+    {
+      "contract": "pq-sep-anarchy",
+      "op": "create_group",
+      "tier": "n/a",
+      "fee_stroops": null,
+      "tx_hash": null,
+      "measurable": false
+    },
+    {
+      "contract": "pq-sep-anarchy",
+      "op": "verify_membership",
+      "tier": "n/a",
+      "fee_stroops": null,
+      "tx_hash": null,
+      "measurable": false
+    },
+    {
+      "contract": "pq-sep-anarchy",
+      "op": "update_commitment",
+      "tier": "n/a",
+      "fee_stroops": null,
+      "tx_hash": null,
+      "measurable": false
+    },
+    {
+      "contract": "pq-sep-anarchy",
+      "op": "bump_group_ttl",
+      "tier": "n/a",
+      "fee_stroops": null,
+      "tx_hash": null,
+      "measurable": false
+    }
+  ]
+}

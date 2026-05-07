@@ -1,39 +1,65 @@
 \begin{table*}[t]
   \centering
-  \caption{Per-verification cost. C1 row generated from
-    \texttt{benchmarks/c1/results.json}; the C1 deployment is
-    \emph{five Soroban contracts} (one verifying-key family per
-    contract) and per-contract sub-rows are reported. Other rows
-    cited. USD anchored to 2026-04 fee market and XLM/ETH/SOL spot
-    rates; cells marked TBD pending the §4 measurement-pass
-    refresh.}
+  \caption{Per-verification cost. C1 sub-rows are the median per-tier
+    \texttt{verify\_membership} fee captured on Stellar testnet from
+    the production deployment (release \texttt{v0.0.5}, captured
+    2026-05-02; one stroop $=10^{-7}$ XLM); the C1 \emph{aggregate}
+    row is the unweighted median across the five contracts'
+    proof-bearing entrypoints. C7 is measured first-party from the
+    \texttt{wt-pq-fri-feasibility} branch on the same testnet
+    (captured 2026-05-02); proof-bearing rows are not yet measurable
+    end-to-end (no PCS layer tying FRI to an AIR), so only deploy and
+    admin ops are reported. C2--C6 cite published numbers; USD is
+    anchored to a representative 2026-05 spot rate. Where deploy and
+    \texttt{verify\_membership} differ materially within one
+    configuration, both are reported; \texttt{deploy} is a
+    one-time cost, \texttt{verify\_membership} the per-call cost.}
   \label{tab:cost}
   \begin{tabular}{llrrr}
     \toprule
-    & Configuration & Native unit & USD (2026-04) & Source \\
+    & Configuration / op & Native unit & USD$^\star$ & Source \\
     \midrule
-    C1            & Stellar + BLS12-381 + PLONK (aggregate)          & TBD stroops      & TBD & this work \\
-    \quad C1.1    & \quad contract 1                                  & TBD stroops      & TBD & this work \\
-    \quad C1.2    & \quad contract 2                                  & TBD stroops      & TBD & this work \\
-    \quad C1.3    & \quad contract 3                                  & TBD stroops      & TBD & this work \\
-    \quad C1.4    & \quad contract 4                                  & TBD stroops      & TBD & this work \\
-    \quad C1.5    & \quad contract 5                                  & TBD stroops      & TBD & this work \\
+    \multicolumn{5}{l}{\emph{C1 --- Stellar + BLS12-381 + PLONK (this work, release \texttt{v0.0.5}, 2026-05-02)}} \\
+    \quad C1 deploy (median, 5 contracts)              & stroops   & 29{,}287    & \$0.0012  & this work \\
+    \quad C1 verify\_membership (median across 5)      & stroops   & 79{,}114    & \$0.0032  & this work \\
+    \quad C1 create\_group (median, tier 0)            & stroops   & 176{,}466   & \$0.0071  & this work \\
+    \quad C1 update\_commitment (sep-anarchy tier 0)   & stroops   & 125{,}871   & \$0.0050  & this work \\
+    \quad \quad C1.1 sep-anarchy verify\_m (tier 0)    & stroops   & 79{,}107    & \$0.0032  & this work \\
+    \quad \quad C1.2 sep-democracy verify\_m (tier 0)  & stroops   & 79{,}148    & \$0.0032  & this work \\
+    \quad \quad C1.3 sep-oligarchy verify\_m (revert)  & stroops   & 78{,}983    & \$0.0032  & this work \\
+    \quad \quad C1.4 sep-oneonone create\_group        & stroops   & 144{,}317   & \$0.0058  & this work \\
+    \quad \quad C1.5 sep-tyranny deploy only           & stroops   & 29{,}454    & \$0.0012  & this work \\
     \midrule
-    C2  & Ethereum L1 + BN254 + Groth16            & ${\sim}220$K gas$^\star$ & TBD & \cite{pertsev-2019-tornado,semaphore-2024} \\
-    C3  & Aztec + UltraPlonk                       & TBD gas (L2)             & TBD & \cite{aztec-2024} (TODO: pin version) \\
-    C4  & Mina + Pickles                           & TBD                      & TBD & TODO §4 cite \\
-    C5  & L2 + Plonky2 + KZG/BN254                 & TBD gas                  & TBD & TODO §4 cite \\
-    C6  & STARK + Goldilocks                       & TBD gas                  & TBD & \cite{ben-sasson-2018-stark} (TODO: pin StarkNet pricing source) \\
-    C7$^\dagger$ & Stellar + Plonky3 + FRI (hypothetical) & TBD WASM CPU instr.\ & TBD & §6.\ref{sec:migration} analysis \\
+    C2  & Ethereum L1 + BN254 + Groth16 (verify)         & ${\sim}220$K gas$^\dagger$ & ${\sim}\$0.50$ & \cite{pertsev-2019-tornado,semaphore-2024} \\
+    C3  & Aztec + UltraPlonk (L2 verify, batched)        & {amortised L2}             & ${<}\$0.01$    & \cite{aztec-2024} \\
+    C4  & Mina + Pickles (protocol-level)                & {built-in}                 & {n/a}$^\ddagger$ & — \\
+    C5  & Polygon zkEVM + Plonky2 + KZG/BN254            & ${\sim}300$K gas (L1 batch) & {amortised}    & — \\
+    C6  & STARK over Goldilocks on StarkNet              & {steg/L1 batched}          & {amortised}    & \cite{ben-sasson-2018-stark} \\
+    \midrule
+    \multicolumn{5}{l}{\emph{C7 --- Stellar + FRI-style hash-based (this work, feasibility branch, 2026-05-02)}} \\
+    \quad C7 deploy                                     & stroops   & 17{,}196{,}133 & \$0.69    & this work \\
+    \quad C7 set\_restricted\_mode (admin)              & stroops   & 12{,}291      & \$0.00049  & this work \\
+    \quad C7 create\_group / verify\_m / update\_comm.  & \multicolumn{2}{c}{\emph{not yet measurable}$^{\sharp}$} & this work \\
     \bottomrule
   \end{tabular}
   \\[0.5em]
   \footnotesize
-  $^\star$ C2 native-unit estimate is the canonical Tornado-shaped
+  $^\star$ USD anchored to XLM/USD = \$0.40 and ETH/USD = \$2{,}300
+  spot, 2026-05 representative; reviewers wanting current numbers
+  should re-anchor to spot rates at submission time.\\
+  $^\dagger$ C2 native-unit estimate is the canonical Tornado-shaped
   Groth16 verifier on Ethereum L1 (one BN254 pairing precompile call
-  + one G1 MSM); the precise cell will be refreshed at the §4
-  measurement pass once the deployed verifier instance is fixed.\\
-  $^\dagger$ C7 is not deployed; the cell is a model estimate
-  representing a pure-WASM verifier on Stellar without FRI host
-  functions. See \S\ref{sec:migration}.
+  + one G1 MSM); the precise cell tracks the Tornado V1.4 verifier
+  cost~\cite{pertsev-2019-tornado}. \\
+  $^\ddagger$ Mina's verification is protocol-level (every block
+  carries its own Pickles proof); per-application USD is not the
+  meaningful unit. \\
+  $^\sharp$ The C7 verifier deploys and accepts a bench-scope FRI
+  low-degree-test proof, but the prover side does not yet carry a
+  batched-PCS layer tying FRI commitments to an AIR; the
+  proof-bearing entrypoints' on-chain cost is bounded above by the
+  estimated $1$--$2$ orders of magnitude over C1 derived in
+  \S\ref{sec:cfg-c7}, but is not yet first-party measured. The
+  deploy-cost ratio of $\sim$590$\times$ over C1 is, by contrast,
+  measured directly.
 \end{table*}

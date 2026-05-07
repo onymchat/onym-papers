@@ -2,9 +2,15 @@
   \centering
   \caption{Post-quantum posture. Class labels follow the §3.4
     enumeration: (P) pairing-based, (E) classical-EC non-pairing,
-    (H) hash-based / FRI. The ``Grover-resistant security level''
-    column states the post-quantum security against a generic
-    Grover attack on the underlying primitive.}
+    (H) hash-based / FRI. The ``Grover-resistant level'' column
+    states the PQ security against a generic Grover attack on the
+    underlying primitive; a Grover-resistant level of zero means
+    Shor breaks the underlying assumption regardless of hash
+    parameters. The hash-family row references the underlying
+    collision-resistance assumption, which is the same
+    standard-model assumption that
+    NIST PQC stack-based signatures (FIPS~205 SLH-DSA) rely on,
+    even though SLH-DSA is a signature scheme rather than a SNARK.}
   \label{tab:pq}
   \begin{tabular}{lll}
     \toprule
@@ -13,10 +19,10 @@
     C1  & P  & 0 (KZG binding reduces to DL on $\mathbb{G}_1$) \\
     C2  & P  & 0 \\
     C3  & P  & 0 (KZG on BN254) \\
-    C4  & P  & 0 (Pasta DL) \\
-    C5  & P  & 0 (KZG on BN254) \\
-    C6  & H  & $\sim$100 bits (depending on hash) \\
-    C7$^\dagger$ & H & $\sim$100 bits (model) \\
+    C4  & E  & 0 (Pasta DL) \\
+    C5  & P  & 0 (KZG on BN254 dominates the inner FRI) \\
+    C6  & H  & ${\sim}100$ bits (depending on hash) \\
+    C7  & H  & ${\sim}64$--$100$ bits (Poseidon2 over BN254 $\mathbb{F}_r$) \\
     \bottomrule
   \end{tabular}
 \end{table}

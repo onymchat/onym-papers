@@ -38,27 +38,28 @@ each subsection discusses transformations from one starting point.
 Three migration paths to a PQ-ready endpoint:
 
 \begin{description}
-  \item[\textsc{C1 $\to$ C7} (commitment-scheme swap, PLONK
-    preserved):] retain the Stellar anchor and the PLONK polynomial
-    IOP, swap the KZG polynomial-commitment scheme for FRI
-    (the Plonky3 design). The relation circuits are unchanged; only
-    the commitment-scheme layer is replaced. Class \textbf{(b)}:
-    Plonky3 is mature enough for production use, but Stellar's
-    host-function set --- BLS12-381 pairings (Protocol
-    22~\cite{stellar-cap-0059}), BN254 pairings (Protocol
-    25~\cite{stellar-cap-0074}), and Poseidon / Poseidon2
-    permutations over the existing scalar fields (also Protocol
-    25~\cite{stellar-cap-0075}) --- does not include the FRI stack.
-    CAP-0075 explicitly scopes out Goldilocks-field arithmetic, NTT,
-    and FRI primitives; in pure WASM, FRI verification is one to two
-    orders of magnitude more expensive than C1's pairing-precompile
-    path. A successor CAP adding the missing FRI primitives would
-    unblock this path; we discuss its technical shape in
-    \S\ref{sec:open-host}. C1's PLONK choice (rather than Groth16)
-    makes this migration simpler than the corresponding migration
-    from a Groth16 starting point would be: the relation circuits
-    do not need to be re-arithmetized for a different proof-system
-    family.
+  \item[\textsc{C1 $\to$ C7} (commitment-scheme swap, hash-based on
+    Stellar):] retain the Stellar anchor, swap the KZG
+    polynomial-commitment scheme for FRI. Class \textbf{(b/c)}: the
+    feasibility-branch deployment in \S\ref{sec:cfg-c7} demonstrates
+    that the verifier side of this migration is mechanically
+    deployable today --- the Poseidon2 host primitive added by
+    CAP-0075~\cite{stellar-cap-0075} carries the in-circuit hash;
+    field arithmetic, NTT, Merkle-path traversal, and the
+    low-degree-test loop run in pure WASM. The empirical deploy-cost
+    multiplier is $\sim$590$\times$ over C1
+    (\S\ref{sec:analysis-cost}), and the prover side is gated on a
+    PCS layer tying FRI commitments to an AIR --- a tooling gap
+    rather than a host-function gap. So the migration is more
+    accurately characterised as ``deployable but economically
+    biased and tooling-incomplete'' than ``blocked''. A successor
+    Stellar CAP adding small-field FRI primitives would close the
+    deploy-cost gap; we discuss its technical shape in
+    \S\ref{sec:open-host}. The complementary path of swapping FRI
+    over Goldilocks for FRI over BN254~$\mathbb{F}_r$ (the
+    feasibility-branch pivot) trades small-field prover-time gains
+    for in-circuit-hash host-function support, and is the empirically
+    cheaper migration today.
   \item[\textsc{C1 $\to$ C6} (anchor change to StarkNet or similar):]
     abandon the Stellar anchor and re-deploy on a chain whose
     verification host is FRI-aware. Class \textbf{(a)}: the
@@ -187,30 +188,44 @@ configuration?
     accept the configuration directly.
 \end{description}
 
-\subsection{From C7 (hypothetical Stellar + Plonky3 + FRI)}
+\subsection{From C7 (Stellar + hash-based, feasibility branch)}
 \label{sec:mig-c7}
 
-C7 is the asymmetric case: it is post-quantum-ready and would inhabit
-the host-function-cheap regime were it deployable, but it is not. The
-sole migration is the host-function unblock.
+C7 is the asymmetric case: post-quantum-ready, deployable today at
+$\sim$590$\times$ the deploy footprint of C1 with proof-bearing
+entrypoints not yet end-to-end measurable, and inhabiting the
+host-function-cheap regime only after either a Stellar host-function
+upgrade or a tooling completion.
 
 \begin{description}
-  \item[\textsc{Stellar protocol upgrade adding FRI host functions}:]
-    Class \textbf{(b)}. Protocol 25 has already moved part of the
-    way: CAP-0075~\cite{stellar-cap-0075} added Poseidon and
-    Poseidon2 permutation primitives over the existing scalar fields
-    (BLS12-381~$\mathbb{F}_r$, BN254~$\mathbb{F}_r$). What remains
-    missing for a deployable FRI verifier is the orthogonal subset
+  \item[\textsc{Stellar protocol upgrade adding small-field FRI
+    primitives}:] Class \textbf{(b)}. Protocol 25 has already moved
+    part of the way: CAP-0075~\cite{stellar-cap-0075} added Poseidon
+    and Poseidon2 permutation primitives over the existing scalar
+    fields (BLS12-381~$\mathbb{F}_r$, BN254~$\mathbb{F}_r$). What
+    closes the empirical deploy-cost gap is the orthogonal subset
     that CAP-0075 explicitly declined to introduce: Goldilocks-field
-    arithmetic, NTT, and FRI-specific operations over a small field.
-    The CAP's rationale documents this scope decision; it is
-    deliberate rather than oversight. A successor CAP would need to
-    introduce a new field arithmetic to the host-function ABI, which
-    is a larger commitment than CAP-0075 was willing to make. We
-    estimate the engineering scale of the unblock at one to two
-    chain-protocol-upgrade cycles plus validator activation; we do
-    not estimate the political feasibility, which is the
-    load-bearing variable in practice.
+    arithmetic, NTT, FRI-folding, and Merkle-path-traversal
+    primitives over a small field. The CAP's rationale documents
+    this scope decision; it is deliberate rather than oversight. A
+    successor CAP would need to introduce a new field arithmetic to
+    the host-function ABI, which is a larger commitment than
+    CAP-0075 was willing to make. We estimate the engineering scale
+    of the unblock at one to two chain-protocol-upgrade cycles plus
+    validator activation; we do not estimate the political
+    feasibility, which is the load-bearing variable in practice.
+  \item[\textsc{Tooling completion --- PCS layer tying FRI to an
+    AIR}:] Class \textbf{(c)}. The feasibility-branch verifier today
+    accepts a FRI low-degree-test proof but no batched-PCS layer
+    binds those FRI commitments to an evaluation of a constrained
+    polynomial in an AIR. Closing this gap requires either a
+    Plonky3-style PCS implementation against the Stellar
+    Poseidon2-W16 transcript, or a Cairo-style alternative AIR
+    encoding; neither exists at production-grade maturity in the
+    feasibility branch. Until this layer lands, the C7 row's
+    proof-bearing entrypoints remain not-first-party-measurable and
+    the steady-state verification cost of C7 is bounded only by the
+    \S\ref{sec:analysis-cost} estimate.
 \end{description}
 
 \subsection{Migration matrix}
@@ -230,13 +245,13 @@ sole migration is the host-function unblock.
     \toprule
     Start & $\to$ C6 & $\to$ C7 & lattice path \\
     \midrule
-    C1 & (a) & (b) & (d) \\
+    C1 & (a) & (b/c)$^\flat$ & (d) \\
     C2 & (a) & ---  & (d) \\
     C3 & (a)$^\ast$ & --- & (d) \\
     C4 & (a)$^\ast$ & (c)$^\dagger$ & (d) \\
-    C5 & (a) & (b) & (d) \\
-    C6 & ---  & (b) & (d) \\
-    C7 & (b) & ---  & (d) \\
+    C5 & (a) & (b/c)$^\flat$ & (d) \\
+    C6 & ---  & (b/c)$^\flat$ & (d) \\
+    C7 & (b/c)$^\flat$ & ---  & (d) \\
     \bottomrule
   \end{tabular}
   \\[0.5em]
@@ -245,7 +260,12 @@ sole migration is the host-function unblock.
     application-relevant semantics (verifier-as-rollup for C3,
     protocol-level recursion for C4). \\
   $^\dagger$ FRI-Pickles is the C4 in-place migration; included
-    for completeness in the C7-shaped destination column.
+    for completeness in the C7-shaped destination column. \\
+  $^\flat$ Refined from earlier-draft Class (b) ``host-function
+    blocked'' to (b/c) ``deployable today, deploy at $\sim$590$\times$
+    C1, proof-bearing entrypoints additionally tooling-blocked on a
+    PCS layer'', based on the feasibility-branch measurement of
+    \S\ref{sec:cfg-c7}.
 \end{table}
 
 The matrix carries one observation that drives \S\ref{sec:open}: no
