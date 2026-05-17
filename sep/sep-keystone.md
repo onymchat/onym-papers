@@ -8,7 +8,7 @@ Status:     Draft
 Type:       Standard
 Created:    2026-05-17
 Updated:    2026-05-17
-Version:    0.4.3
+Version:    0.4.4
 Discussion: <TBD>
 Depends:    CAP-0059 (BLS12-381 host functions, activated in Protocol 22),
             CAP-0075 (Poseidon and Poseidon2 host functions, activated in Protocol 25)
@@ -50,6 +50,23 @@ rest of the SEP can be read without ambiguity:
   published by the relation's author before relying on any tag, regardless
   of its human-readable name. The contract certifies nothing about
   intent; it is an interface, not a registry of canonical relations.
+- **When AGMK is the right shape.** AGMK is the right pattern when a
+  deployment expects to register relations *dynamically*: novel
+  governance types, dynamic parameter choices (quorum thresholds, tier
+  expansions), or third-party-published relations. For fixed-vk-set
+  governance — where the entire $\mathsf{vk}$ family is decided at
+  deploy time and never expected to grow without a redeploy — baking
+  the verifying keys into the contract WASM at deployment is strictly
+  simpler and cheaper than going through `register_relation`: no
+  per-relation persistent-storage footprint per group, no
+  $H_{\mathrm{bytes}}$ derivation at registration, no event payload
+  carrying redundant $\mathsf{vk}$ bytes. The current
+  `onym-contracts` family (`sep-anarchy`, `sep-tyranny`,
+  `sep-oneonone`) is exactly this baked-vk pattern, and the AGMK SEP
+  is not a strict improvement over it for those cases. The two
+  patterns are complementary: bake when the $\mathsf{vk}$ set is
+  fixed at deploy; use AGMK when the $\mathsf{vk}$ set is expected
+  to grow on-chain after deploy.
 
 ## 2. Motivation
 
@@ -1273,6 +1290,16 @@ localise here.
 
 ## 9. Changelog
 
+- **0.4.4** (2026-05-18): Added a third §1 scope clarification —
+  **"When AGMK is the right shape"** — explicitly positioning AGMK
+  as complementary to the baked-vk pattern, not a strict
+  improvement over it. For governance types whose vk family is
+  fixed at deploy time (anarchy, tyranny, oneonone in the current
+  `onym-contracts` family), baking the vk into the contract WASM is
+  simpler and cheaper than going through `register_relation`. AGMK's
+  value is dynamic / extensible / third-party-published relations.
+  Closes a misreading risk where reviewers could assume AGMK
+  obsoletes the existing fixed-vk contracts.
 - **0.4.3** (2026-05-17): Third external-reviewer pass — seven
   targeted fixes. (1) **LCA formula off-by-one in §4.8.2(a)**
   corrected: equality range is now $h_{\mathrm{LCA}} \le \ell \le D - 1$
