@@ -373,10 +373,9 @@ value $\ell$.
 
 \begin{definition}[Group-membership keystone update relation $\RUpd$]
 \label{def:rupd}
-Fix a sentinel field element $\Empty \in \Fr$ disjoint from the
-image of any honest leaf-construction routine the deployment
-uses; the deployment instantiates $\Empty$ as a fixed
-domain-separated constant. Fix a domain-separation identifier
+Fix a sentinel value $\Empty \in \Fr$ reserved by the deployment
+to mark empty positions; the relation below explicitly forbids
+$\Empty$ as a member leaf. Fix a domain-separation identifier
 $\mathsf{tag}_{\RUpd}$ that uniquely names this relation
 (distinct from any other circuit deployed under the same SRS;
 see \Cref{sec:notes}, ``Domain separation in Fiat--Shamir''). The
@@ -401,10 +400,15 @@ the admitter's position $\Idx_a$, leaf $\ell_a$, and sibling
 path $\Pth_a$, together with a target empty position $\Idx_e$,
 the new leaf $\ell^{\star}$ to be written at that position, and
 the sibling path $\Pth_e$ opening $\Idx_e$ to $\Empty$ in $\Cg$.
-The new commitment $\Cgp$ is, by construction, the root obtained
-by recomputing the Merkle root from $\ell^{\star}$ at position
-$\Idx_e$ against the same siblings $\Pth_e$ that opened $\Empty$
-to $\Cg$ at that position.
+
+The new commitment $\Cgp$ is obtained by recomputing the Merkle
+root along the branch fixed by $\Idx_e$, using the supplied
+sibling vector $\Pth_e$ together with $\ell^{\star}$ at the leaf
+position --- i.e., the same branch structure that opened $\Empty$
+to $\Cg$, with the leaf value substituted to $\ell^{\star}$. The
+sibling vector $\Pth_e$ thus defines the branch shape; the
+recomputation differs from the verification only in the leaf
+value supplied at the bottom of that branch.
 
 The relation does not constrain the epoch $e$ in the predicate
 body; $e$ is a public input bound into the Fiat--Shamir
@@ -657,23 +661,25 @@ queried statement, there exists a probabilistic polynomial-time
 extractor $\mathcal{E}^{\Adv}$ that --- given $\Adv$'s code and
 random tape --- outputs a witness $w$ such that $(x_{\star}; w)$
 satisfies the circuit, with extraction loss polynomial in $\Adv$'s
-running time and total oracle-query budget.
+running time and total oracle-query budget. ``Fresh'' here refers
+to the full public-input tuple $x_{\star}$: a proof carrying a
+different byte string but binding the same public-input tuple as
+some prior queried proof is not fresh in this sense.
 \end{lemma}
 
 \begin{remark}[Scope of the lemma]
 \label{rem:se-scope}
 \Cref{lem:plonk-se} is not a claim that ``PLONK is simulation
-extractable'' as a generic property of the proof system. It is a
-claim about the \emph{specific} PLONK variant analysed
-in~\cite{ganesh-2022-simext-plonk}, instantiated with exactly the
-transcript discipline (i)--(iv) above. Departures from that
-discipline --- a different absorption order, an additional
-prover message folded into a challenge derivation, a stripped
-domain separator, an alternate proof structure such as Plonkup
-or HyperPlonk --- void the cited reduction unless re-analysed.
-The deployment must therefore pin the prover and verifier to the
-analysed transcript; the Fiat--Shamir details are part of the
-trusted computing base.
+extractable'' as a generic property. It is a claim about the
+PLONK-family proof system and Fiat--Shamir transcript discipline
+analysed in~\cite{ganesh-2022-simext-plonk}, instantiated as in
+(i)--(iv) above. The deployment is pinned to that variant; any
+material change to the transcript layout or to the proof
+structure --- a different absorption order, an additional prover
+message folded into a challenge derivation, a stripped domain
+separator, an alternate proof structure --- requires re-analysis
+before the lemma can be re-invoked. The Fiat--Shamir details are
+therefore part of the trusted computing base.
 \end{remark}
 
 \begin{remark}[Why plain knowledge soundness does not suffice]
@@ -767,22 +773,22 @@ The predicate of $\RUpd$ then gives:
   rotation (\Cref{rem:slot}).
 \item $\ell^{\star} \ne \Empty$ and
   $\Cgp_{\star} = \MerkleRoot(\Idx_e, \ell^{\star}, \Pth_e)$.
-  Since $\Pth_e$ is the same sequence of sibling values that
-  combined with $\Empty$ at position $\Idx_e$ to yield $\Cg$,
-  recombining those siblings with $\ell^{\star}$ at the same
-  position produces the root of the tree obtained from $\Cg$ by
-  replacing position $\Idx_e$ alone, leaving every other
-  committed position unchanged (these other positions are pinned
-  by \Cref{lem:merkle} applied to each).
+  The recomputation uses the same branch structure
+  $(\Idx_e, \Pth_e)$ that opened $\Empty$ to $\Cg$, with the leaf
+  value substituted to $\ell^{\star}$: that is, $\Cgp_{\star}$
+  corresponds to replacing the leaf at position $\Idx_e$ with
+  $\ell^{\star}$ while preserving the supplied branch. We rely
+  only on this substitution-along-the-supplied-branch property
+  for the win-condition contradiction; we do not claim any
+  stronger global invariant about the rest of the committed set.
 \end{enumerate}
 
-Therefore $\Cgp_{\star}$ commits to a tree that differs from
-$\Cg$ exactly at the previously-empty position $\Idx_e$, where
-the new value $\ell^{\star} \ne \Empty$ has been written by a
-current member at position $\Idx_a \ne \Idx_e$. This is a
-witness to membership of
-$(\Cg, \Cgp_{\star}, e, \mathsf{tag}_{\RUpd}; w_{\star})$ in
-$\RUpd$ --- contradicting the win condition of
+Therefore $w_{\star}$ is a witness for the public-input tuple
+$(\Cg, \Cgp_{\star}, e, \mathsf{tag}_{\RUpd})$ under
+$\RUpd$: a current member at position $\Idx_a$ has presented an
+empty-slot witness at a distinct position $\Idx_e$, and the
+claimed new root corresponds to substituting $\ell^{\star}$ along
+that branch. This contradicts the win condition of
 \Cref{def:auth}, which required \emph{no} such witness to exist.
 
 Hence $\varepsilon = \negl(\lambda)$, modulo the polynomial
@@ -1066,6 +1072,23 @@ be the canonical one. Tightening the trust statement above the
 minimum (a) is a deployment-engineering question outside the
 cryptographic scope of this paper, but the choice is
 load-bearing for what the deployment can claim end-to-end.
+
+\paragraph{Stability of verifier semantics and verifying key.}
+\Cref{thm:auth} assumes that, over the lifetime of the
+deployment, the on-chain verifier semantics (circuit relation,
+preprocessing routine, transcript discipline) and the selected
+verifying key $\mathsf{vk}$ are fixed. Under that assumption the
+soundness statement is global across the deployment. An on-chain
+upgrade that changes verifier semantics or swaps $\mathsf{vk}$
+produces a fresh instantiation: soundness must then be
+re-established for the new artifacts under the same chain of
+reductions, and \Cref{thm:auth} as stated becomes version-local
+--- it speaks only about proofs verified under the
+artifacts in force at the time of verification. Upgrade
+governance and cross-version replay protection are therefore
+load-bearing for end-to-end claims that span an upgrade
+boundary, and lie outside the cryptographic scope of this
+paper.
 
 \paragraph{Epoch monotonicity is chain-state, not a circuit
 invariant.} \Cref{def:rupd} does not constrain the epoch $e$ in
