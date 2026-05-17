@@ -27,6 +27,7 @@
 \usepackage[hidelinks]{hyperref}
 \usepackage{cleveref}
 \usepackage{parskip}
+\usepackage{enumitem}
 
 % Slightly tighter line spacing for a denser whitepaper feel.
 \linespread{1.05}
@@ -85,8 +86,10 @@
 \newcommand{\Open}{\mathsf{Open}}
 \newcommand{\concat}{\mathbin{\|}}
 \newcommand{\Empty}{\mathsf{EMPTY}}
-\newcommand{\WriteLeaf}{\mathsf{WriteLeaf}}
-\newcommand{\LeafIndex}{\mathsf{LeafIndex}}
+\newcommand{\MerkleVerify}{\mathsf{MerkleVerify}}
+\newcommand{\MerkleRoot}{\mathsf{MerkleRoot}}
+\newcommand{\Idx}{\mathsf{idx}}
+\newcommand{\Pth}{\mathsf{path}}
 
 % ─── Title block (brand-neutral, no author) ──────────────────────────
 \title{Cryptographic Soundness of a SNARK-Gated Policy Contract:\\
@@ -107,22 +110,25 @@ group member may admit a new one. The contract sits on top of a
 fixed cryptographic stack --- the BLS12-381 curve, the KZG
 polynomial-commitment scheme, the Poseidon2 algebraic hash, a
 binary Merkle commitment to the membership set, the Fiat--Shamir
-transform, and a simulation-extractable PLONK proof system ---
-with each layer contributing a single concrete soundness
-reduction. The update relation is defined so that an admission
-requires \emph{two} Merkle witnesses --- one for the admitter's
-own membership, one for the target slot's emptiness --- and
-forbids overwriting the admitter's slot. We make every reduction
-explicit and trace the contract's authorisation claim down to
-four base assumptions: the $d$-strong Bilinear Diffie--Hellman
-($d$-SBDH) problem on BLS12-381, collision resistance of the
-Poseidon2 permutation under its published parameters, the
-random-oracle modelling of Poseidon2 inside the Fiat--Shamir
-transcript, and the one-honest-contributor assumption of the
-reused structured reference string. The result is a
-self-contained checklist of what must hold for the contract to
-be sound, and a precise statement of what fails first under a
-cryptographically-relevant quantum computer.
+transform, and a specific PLONK variant for which
+simulation-extractable knowledge soundness has been established
+in the literature --- with each layer contributing a single
+concrete soundness reduction. The update relation is defined so
+that an admission requires \emph{two} Merkle witnesses --- one
+for the admitter's own membership, one for the target slot's
+emptiness, at distinct leaf positions --- and the Merkle soundness
+step is the position-binding statement at a fixed index, not a
+path-uniqueness statement. We make every reduction explicit and
+trace the contract's authorisation claim down to four base
+assumptions: the $d$-strong Bilinear Diffie--Hellman ($d$-SBDH)
+problem on BLS12-381, collision resistance of the Poseidon2
+permutation under its published parameters, the random-oracle
+modelling of Poseidon2 inside the Fiat--Shamir transcript, and
+the one-honest-contributor assumption of the reused structured
+reference string. The result is a self-contained checklist of
+what must hold for the contract to be sound, and a precise
+statement of what fails first under a cryptographically-relevant
+quantum computer.
 \end{abstract}
 
 \section{Introduction}
@@ -301,49 +307,77 @@ at every internal node by Poseidon2. The membership set has
 cardinality at most $2^{D}$.
 \end{definition}
 
+\begin{definition}[Merkle path, root computation, verifier]
+\label{def:merkle-interface}
+A leaf position is an index $\Idx \in \{0, 1, \ldots, 2^{D} - 1\}$.
+A \emph{Merkle path} is a sequence $\Pth = (s_1, \ldots, s_{D})$
+of sibling values in $\Fr$, one per tree level. The
+deterministic \emph{root-computation} function
+\[
+   \MerkleRoot(\Idx, \ell, \Pth)\;\in\;\Fr
+\]
+takes the leaf value $\ell$, walks the tree from leaf to root,
+and at each level $i$ combines the current node $c$ with sibling
+$s_i$ under Poseidon2 according to the $i$-th bit of $\Idx$:
+\[
+   c \;\mapsto\;
+   \begin{cases}
+     \Poseidon(c,\ s_i) & \text{if the $i$-th bit of $\Idx$ is $0$,} \\
+     \Poseidon(s_i,\ c) & \text{if the $i$-th bit of $\Idx$ is $1$.}
+   \end{cases}
+\]
+The \emph{verifier} is the predicate
+\[
+   \MerkleVerify(\Cg,\, \Idx,\, \ell,\, \Pth)
+   \;\equiv\;
+   \bigl[\ \MerkleRoot(\Idx,\, \ell,\, \Pth) \;=\; \Cg\ \bigr].
+\]
+All later definitions invoke this same indexed interface.
+\end{definition}
+
 \begin{definition}[Membership relation $\RMem$]
 \label{def:rmem}
 The relation
 \[
 \RMem
-= \bigl\{\bigl(\Cg;\; (\ell, \mathsf{path})\bigr)
-       : \mathsf{MerkleVerify}(\Cg, \ell, \mathsf{path}) = 1 \bigr\},
+= \bigl\{\bigl(\Cg;\; (\Idx, \ell, \Pth)\bigr)
+       : \MerkleVerify(\Cg, \Idx, \ell, \Pth) = 1 \bigr\}.
 \]
-where $\Cg$ is the public input, $(\ell, \mathsf{path})$ is the
-witness, $\ell$ is a leaf, and $\mathsf{MerkleVerify}$ is the
-Poseidon2-Merkle path verifier.
+The public input is $\Cg$; the witness $(\Idx, \ell, \Pth)$
+asserts that position $\Idx$ in the tree of $\Cg$ holds leaf
+value $\ell$.
 \end{definition}
 
 \begin{definition}[\sep{anarchy} update relation $\RUpd$]
 \label{def:rupd}
-Fix a sentinel field element $\Empty \in \Fr$ chosen so that no
-honest leaf encoding $\Poseidon(\text{identity\_pk},
-\text{blinding})$ produces $\Empty$ (any value outside the image
-of honest leaf construction works; the deployment uses a
-domain-separated constant). The relation
+Fix a sentinel field element $\Empty \in \Fr$ disjoint from the
+image of any honest leaf-construction routine the deployment
+uses; the deployment instantiates $\Empty$ as a fixed
+domain-separated constant. The relation
 \[
 \RUpd^{\sep{anarchy}}
 = \left\{\bigl(\Cg, \Cgp, e, t;\; w\bigr) :
 \begin{aligned}
    &t = \texttt{sep-anarchy} \\
-   &w = (\ell_a,\, \mathsf{path}_a,\, \ell^{\star},\, \mathsf{path}_e) \\
+   &w = (\Idx_a,\, \ell_a,\, \Pth_a,\;
+         \Idx_e,\, \ell^{\star},\, \Pth_e) \\
    &\ell_a \ne \Empty \\
    &\ell^{\star} \ne \Empty \\
-   &\mathsf{MerkleVerify}(\Cg, \ell_a, \mathsf{path}_a) = 1 \\
-   &\mathsf{MerkleVerify}(\Cg, \Empty, \mathsf{path}_e) = 1 \\
-   &\LeafIndex(\mathsf{path}_a) \ne \LeafIndex(\mathsf{path}_e) \\
-   &\Cgp = \WriteLeaf(\Cg,\, \mathsf{path}_e,\, \ell^{\star})
-\end{aligned}\right\}
+   &\Idx_a \ne \Idx_e \\
+   &\MerkleVerify(\Cg,\, \Idx_a,\, \ell_a,\, \Pth_a) = 1 \\
+   &\MerkleVerify(\Cg,\, \Idx_e,\, \Empty,\, \Pth_e) = 1 \\
+   &\Cgp \;=\; \MerkleRoot(\Idx_e,\, \ell^{\star},\, \Pth_e)
+\end{aligned}\right\}.
 \]
-where $(\Cg, \Cgp, e, t)$ is the public input, $w$ is the
-witness, $\ell_a$ is the admitter's existing leaf,
-$\mathsf{path}_a$ is the Merkle path that opens it,
-$\mathsf{path}_e$ is a Merkle path that opens to the $\Empty$
-sentinel at a different slot of the tree, $\ell^{\star}$ is the
-new leaf to be written there, and $\WriteLeaf(\Cg,
-\mathsf{path}_e, \ell^{\star})$ is the deterministic routine
-that rehashes $\mathsf{path}_e$ with $\ell^{\star}$ in place of
-the leaf reached by $\mathsf{path}_e$.
+The public input is $(\Cg, \Cgp, e, t)$; the witness comprises
+the admitter's position $\Idx_a$, leaf $\ell_a$, and sibling
+path $\Pth_a$, together with a target empty position $\Idx_e$,
+the new leaf $\ell^{\star}$ to be written at that position, and
+the sibling path $\Pth_e$ opening $\Idx_e$ to $\Empty$ in $\Cg$.
+The new commitment $\Cgp$ is, by construction, the root obtained
+by recomputing the Merkle root from $\ell^{\star}$ at position
+$\Idx_e$ against the same siblings $\Pth_e$ that opened $\Empty$
+to $\Cg$ at that position.
 
 The relation does not constrain the epoch $e$ in the predicate
 body; $e$ is a public input bound into the Fiat--Shamir
@@ -353,18 +387,46 @@ admission, with the stored epoch incremented by exactly one on
 success.
 \end{definition}
 
-\begin{remark}
+\begin{remark}[Two-witness shape and position binding]
 \label{rem:slot}
 The two-witness shape of \Cref{def:rupd} is load-bearing for the
 contract's plain-reading guarantee. With only the admitter's
-witness $(\ell_a, \mathsf{path}_a)$, the relation would permit a
-member to rehash their own sibling path with an arbitrary new
-leaf in place of $\ell_a$ --- i.e., to overwrite or transfer
-their own slot. Requiring a separate Merkle witness that
-$\mathsf{path}_e$ opens to $\Empty$, and forbidding
-$\LeafIndex(\mathsf{path}_a) = \LeafIndex(\mathsf{path}_e)$,
-restricts the relation to genuine admissions at previously-empty
-slots distinct from the admitter's.
+witness $(\Idx_a, \ell_a, \Pth_a)$, the relation would permit a
+member to recompute a new root from an arbitrary new leaf at
+\emph{their own} position $\Idx_a$ --- i.e., to overwrite or
+transfer their own slot. Requiring a separate
+Merkle witness that $\Pth_e$ opens $\Idx_e$ to $\Empty$, and
+forbidding $\Idx_a = \Idx_e$, restricts the relation to genuine
+admissions at positions that were previously empty and are
+distinct from the admitter's. The corresponding cryptographic
+claim --- that the constraint
+$\MerkleVerify(\Cg, \Idx_e, \Empty, \Pth_e) = 1$ actually pins
+down position $\Idx_e$ in $\Cg$ to the value $\Empty$ --- is
+established by the position-binding statement of
+\Cref{lem:merkle} (rather than by any uniqueness-of-path
+property, which does not hold).
+\end{remark}
+
+\begin{remark}[Leaf semantics --- a deliberate scope choice]
+\label{rem:leaf-scope}
+\Cref{def:rupd} constrains $\ell^{\star}$ only by
+$\ell^{\star} \ne \Empty$; it does not require $\ell^{\star}$ to
+be of any particular form. This is a deliberate scope choice: the
+relation treats any non-empty field element as an admissible
+leaf, and \emph{does not} enforce canonical identity-encoding
+(e.g., $\ell^{\star} = \Poseidon(\mathsf{identity\_pk},
+\mathsf{blinding})$ for an opening the admitter knows) inside
+the circuit. A deployment that requires canonical leaf encoding
+must either (i)~enforce it externally --- e.g., a client-side
+check before the admitter signs the transaction, an off-chain
+attestation, or a registry of canonical pre-images --- or
+(ii)~compile a richer $\RUpd$ that includes a leaf-encoding
+witness. The proof of \Cref{thm:auth} below treats option~(i):
+the cryptographic-soundness claim covers what the
+\emph{circuit} enforces, and the trust boundary for
+canonical-leaf encoding is therefore explicitly outside the
+relation. Implementations that require option~(ii) must
+re-derive a relation-specific soundness statement.
 \end{remark}
 
 \begin{definition}[Authorisation soundness of \sep{anarchy}]
@@ -456,29 +518,51 @@ differential families, with the round count adjusted twice since
 the original 2021 publication.
 \end{remark}
 
-\begin{lemma}[Merkle path soundness from \Cref{ass:p2cr}~\cite{merkle-1989-tree}]
+\begin{lemma}[Position-binding Merkle soundness from
+\Cref{ass:p2cr}~\cite{merkle-1989-tree}]
 \label{lem:merkle}
-Let $\Cg$ be the root of a Poseidon2 Merkle tree of depth $D$.
-For every probabilistic polynomial-time adversary $\Adv$,
+Let $\Cg \in \Fr$ be a fixed Merkle root of depth $D$. For every
+probabilistic polynomial-time adversary $\Adv$ and every fixed
+position $\Idx \in \{0,1,\ldots,2^{D}-1\}$,
 \[
 \Pr\!\left[
 \begin{aligned}
-&\mathsf{MerkleVerify}(\Cg, \ell_1, \mathsf{path}_1) = 1 \\
-&\wedge\; \mathsf{MerkleVerify}(\Cg, \ell_2, \mathsf{path}_2) = 1 \\
-&\wedge\; (\ell_1, \mathsf{path}_1) \ne (\ell_2, \mathsf{path}_2)
+&\MerkleVerify(\Cg,\, \Idx,\, \ell_1,\, \Pth_1) = 1 \\
+&\wedge\; \MerkleVerify(\Cg,\, \Idx,\, \ell_2,\, \Pth_2) = 1 \\
+&\wedge\; \ell_1 \ne \ell_2
 \end{aligned}
 \;:\;
-\bigl(\Cg, \ell_1, \mathsf{path}_1, \ell_2, \mathsf{path}_2\bigr) \leftarrow \Adv
+\bigl(\ell_1, \Pth_1, \ell_2, \Pth_2\bigr) \leftarrow \Adv(\Cg, \Idx)
 \right] \le \negl(\lambda).
 \]
+That is: a fixed pair $(\Cg, \Idx)$ pins down at most one leaf
+value $\ell$ for which any path verifies, up to negligible
+probability.
 \end{lemma}
 
 \begin{proof}[Proof sketch]
-Two distinct authentication paths verifying against the same root
-must differ at some internal node $v$, and the two distinct child
-pairs at $v$ Poseidon2-hash to the same parent --- a collision
-contradicting \Cref{ass:p2cr}.
+Suppose $\Adv$ outputs $(\ell_1, \Pth_1, \ell_2, \Pth_2)$
+satisfying the event. Both
+$\MerkleRoot(\Idx, \ell_1, \Pth_1)$ and
+$\MerkleRoot(\Idx, \ell_2, \Pth_2)$ equal $\Cg$. Walking up from
+the leaf along the bits of $\Idx$, since $\ell_1 \ne \ell_2$, the
+two computations begin at different node values at level $0$. At
+the lowest level where the two computations \emph{coincide} (which
+must exist, since both reach the same final root $\Cg$), the two
+preceding Poseidon2 invocations took different inputs but produced
+the same output --- a Poseidon2 collision, contradicting
+\Cref{ass:p2cr}.
 \end{proof}
+
+\begin{remark}[What this lemma does \emph{not} say]
+\label{rem:merkle-scope}
+\Cref{lem:merkle} does \emph{not} say that two distinct Merkle
+paths cannot both verify against the same root. Two genuinely
+different leaves (at different positions) both verify against the
+same root by construction; the lemma constrains only what happens
+at a \emph{fixed} position. The proof of \Cref{thm:auth} relies
+exclusively on this position-binding form.
+\end{remark}
 
 \begin{assumption}[Poseidon2 as a random oracle in the transcript]
 \label{ass:p2rom}
@@ -508,57 +592,96 @@ the absorption schedule; for $k$ in the range used by PLONK
 remains polynomial.
 \end{proof}
 
-\begin{lemma}[PLONK simulation-extractable knowledge soundness%
+\begin{lemma}[Simulation-extractable knowledge soundness for the
+deployed PLONK variant%
 ~\cite{gabizon-2019-plonk,ganesh-2022-simext-plonk}]
 \label{lem:plonk-se}
+Let $\Pi$ be the PLONK proof system of~\cite{gabizon-2019-plonk}
+instantiated with the precise Fiat--Shamir transcript discipline
+required by~\cite{ganesh-2022-simext-plonk}, namely:
+\begin{enumerate}[label=(\roman*),leftmargin=2em]
+  \item the transcript is opened by a relation-specific domain
+    separator that uniquely identifies the relation, the
+    verifying-key digest, and any tier-index parameter
+    (\Cref{sec:notes}, ``Domain separation in Fiat--Shamir'');
+  \item every public input is absorbed into the transcript
+    \emph{before} any verifier challenge is drawn from the
+    transcript-so-far (\Cref{sec:notes}, ``Public-input
+    absorption order'');
+  \item every prover commitment $[a]_1, [b]_1, [c]_1, [z]_1,
+    [t]_1$ is absorbed before the immediately following
+    challenge is drawn, in the absorption order analysed
+    in~\cite{ganesh-2022-simext-plonk};
+  \item challenges are drawn by squeezing the transcript hash
+    with no further inputs, in the exact order analysed in
+    \cite{ganesh-2022-simext-plonk}.
+\end{enumerate}
+
 Under \Cref{ass:sbdh} (which implies \Cref{lem:kzg}) and
-\Cref{lem:fs}, in the algebraic group model, the PLONK proof
-system --- instantiated with a Fiat--Shamir absorption schedule
-that binds every public input into the transcript before any
-verifier challenge is drawn, and with the simulation-extractable
-variant of~\cite{ganesh-2022-simext-plonk} --- has
-\emph{simulation-extractable knowledge soundness} against
-probabilistic polynomial-time adversaries. That is, for every
-PPT adversary $\Adv$ that has oracle access to a proof simulator
-$\mathcal{S}$ producing simulated accepting proofs for arbitrary
-adversarially-chosen statements, and that subsequently produces
-an accepting proof $\pi_{\star}$ on a fresh statement $x_{\star}$
-(distinct from every simulator query), there exists a PPT
-extractor $\mathcal{E}^{\Adv}$ that, given $\Adv$'s code and
-random tape, outputs a witness $w$ such that $(x_{\star}; w)$
+\Cref{lem:fs}, in the algebraic group model, $\Pi$ satisfies
+\emph{simulation-extractable knowledge soundness} as defined
+in~\cite{ganesh-2022-simext-plonk}: for every probabilistic
+polynomial-time adversary $\Adv$ that interacts with the prover
+oracle of $\Pi$ for an adversarially-chosen sequence of
+statements and may observe the resulting accepting proofs, and
+that subsequently outputs an accepting proof $\pi_{\star}$ on a
+\emph{fresh} statement $x_{\star}$ not equal to any earlier
+queried statement, there exists a probabilistic polynomial-time
+extractor $\mathcal{E}^{\Adv}$ that --- given $\Adv$'s code and
+random tape --- outputs a witness $w$ such that $(x_{\star}; w)$
 satisfies the circuit, with extraction loss polynomial in $\Adv$'s
-running time and oracle-query budget.
+running time and total oracle-query budget.
 \end{lemma}
 
-\begin{remark}
-\label{rem:se-vs-ks}
-Plain knowledge soundness~\cite{gabizon-2019-plonk} is
-\emph{insufficient} for the chain-deployment setting of
-\Cref{def:auth}: an adversary that observes a polynomial history
-of accepted proofs may, in principle, malleate one of them into a
-fresh accepting proof on a different statement without ``knowing''
-a witness in the plain-extractor sense. The proper notion is the
-strengthening above. Concretely, the Ganesh--Khoshakhlagh--%
-Kohlweiss--Nitulescu--Zajac analysis~\cite{ganesh-2022-simext-plonk}
-shows that PLONK with updatable SRS is simulation-extractable
-under exactly the Fiat--Shamir absorption discipline catalogued
-in \Cref{sec:notes}: every public input must enter the transcript
-before any challenge is drawn, and a relation-specific domain tag
-must be prefixed.
+\begin{remark}[Scope of the lemma]
+\label{rem:se-scope}
+\Cref{lem:plonk-se} is not a claim that ``PLONK is simulation
+extractable'' as a generic property of the proof system. It is a
+claim about the \emph{specific} PLONK variant analysed
+in~\cite{ganesh-2022-simext-plonk}, instantiated with exactly the
+transcript discipline (i)--(iv) above. Departures from that
+discipline --- a different absorption order, an additional
+prover message folded into a challenge derivation, a stripped
+domain separator, an alternate proof structure such as Plonkup
+or HyperPlonk --- void the cited reduction unless re-analysed.
+The deployment must therefore pin the prover and verifier to the
+analysed transcript; the Fiat--Shamir details are part of the
+trusted computing base.
 \end{remark}
 
-\begin{remark}
+\begin{remark}[Why plain knowledge soundness does not suffice]
+\label{rem:se-vs-ks}
+Plain knowledge soundness~\cite{gabizon-2019-plonk} only
+guarantees that an isolated adversary producing an accepting
+proof has a witness in the extractor's view. In a deployed
+on-chain setting, the adversary observes a polynomial number of
+prior accepting proofs published by the chain (whether produced
+honestly by other clients or by earlier adversarial submissions
+that the chain accepted). Plain knowledge soundness does not
+rule out that such an adversary can malleate one or more of the
+observed proofs into a fresh accepting proof on a \emph{different}
+statement without learning a witness. The simulation-extractable
+strengthening of~\cite{ganesh-2022-simext-plonk} is precisely the
+notion that closes this gap: it covers adversaries that observe
+prior accepting proofs --- regardless of whether those proofs
+were generated honestly or adversarially --- and asserts that
+no fresh accepting proof on a new statement can be produced
+without an extractable witness.
+\end{remark}
+
+\begin{remark}[AGM heuristic and variant pinning]
 \label{rem:agm}
 The algebraic group model is a heuristic restriction on
 $\Adv$'s strategies rather than a standard-model assumption; we
 flag it explicitly here. A separation between the AGM and the
 generic group model could in principle invalidate
-\Cref{lem:plonk-se}, although no such separation is currently known
-that would apply to the structures used by PLONK. The deployment
-is pinned to the specific PLONK variant of~\cite{gabizon-2019-plonk}
-plus the simulation-extractability modifications
-of~\cite{ganesh-2022-simext-plonk}; substituting a different
-variant requires re-checking that the cited result still applies.
+\Cref{lem:plonk-se}, although no such separation is currently
+known that would apply to the structures used by PLONK. The
+deployment is pinned to the specific PLONK variant
+of~\cite{gabizon-2019-plonk} plus the simulation-extractability
+modifications of~\cite{ganesh-2022-simext-plonk}; substituting a
+different variant --- or even reordering the transcript --- voids
+\Cref{lem:plonk-se} until the substitution is re-analysed.
 \end{remark}
 
 \section{Composition theorem}
@@ -572,53 +695,73 @@ authorisation-sound in the sense of \Cref{def:auth}.
 \end{theorem}
 
 \begin{proof}[Proof sketch]
-Fix a PPT adversary $\Adv$ that wins the authorisation-soundness
-game with non-negligible probability $\varepsilon$. The adversary
-observes a polynomial-size history of accepted proofs on chain;
-since each accepted on-chain proof is statistically
-indistinguishable from a simulator output under the
-zero-knowledge guarantee of PLONK, we model the chain history as
-a simulator oracle $\mathcal{S}$ in \Cref{lem:plonk-se}.
+Fix a PPT adversary $\Adv$ that wins the
+authorisation-soundness game with non-negligible probability
+$\varepsilon$. By definition (\Cref{def:auth}), $\Adv$ has
+read-only access to every prior accepting proof published on
+the chain, and outputs $(\Cgp_{\star}, \pi_{\star})$ such that
+$\Verify(\mathsf{vk},
+(\Cg, \Cgp_{\star}, e, \texttt{sep-anarchy}), \pi_{\star}) = 1$
+and no witness for that statement exists in
+$\RUpd^{\sep{anarchy}}$.
 
-By \Cref{lem:plonk-se} (simulation-extractable knowledge
-soundness), an extractor $\mathcal{E}^{\Adv}$ produces, with
-probability at least $\varepsilon - \negl(\lambda)$, a witness
-$w_{\star} = (\ell_a, \mathsf{path}_a, \ell^{\star},
-\mathsf{path}_e)$ such that
+The simulation-extractable knowledge soundness of
+\Cref{lem:plonk-se} applies directly: an extractor
+$\mathcal{E}^{\Adv}$ produces, with probability at least
+$\varepsilon - \negl(\lambda)$, a witness
+$w_{\star} = (\Idx_a, \ell_a, \Pth_a,\; \Idx_e, \ell^{\star},
+\Pth_e)$ such that
 $(\Cg, \Cgp_{\star}, e, \texttt{sep-anarchy}; w_{\star})
-\in \RUpd^{\sep{anarchy}}$ (\Cref{def:rupd}).
+\in \RUpd^{\sep{anarchy}}$. The lemma's quantification covers
+adversaries that observe arbitrary prior accepting proofs ---
+whether produced honestly or by earlier adversarial submissions
+the chain accepted --- and rules out malleation of those proofs
+into a fresh accepting proof on a new statement
+(\Cref{rem:se-vs-ks}). We do not need to invoke zero-knowledge
+or to model the chain history as a simulator oracle: the
+extractor's existence in \Cref{lem:plonk-se} already accounts
+for adversaries that observe the full chain history.
 
-By the predicate of $\RUpd^{\sep{anarchy}}$:
+The predicate of $\RUpd^{\sep{anarchy}}$ then gives:
 \begin{enumerate}
-\item $\ell_a \ne \Empty$ and $\mathsf{MerkleVerify}(\Cg, \ell_a,
-\mathsf{path}_a) = 1$. By \Cref{lem:merkle}, $\mathsf{path}_a$ is
-unique up to the leaf it opens, so $\ell_a$ is determined and
-\emph{is} a real (non-empty) leaf currently in the membership set
-committed to by $\Cg$. The admitter is a current member.
-\item $\mathsf{MerkleVerify}(\Cg, \Empty, \mathsf{path}_e) = 1$.
-By the same lemma, $\mathsf{path}_e$ is unique up to the leaf it
-opens, so the slot at index $\LeafIndex(\mathsf{path}_e)$ in
-$\Cg$ holds $\Empty$ --- i.e., it was previously empty.
-\item $\LeafIndex(\mathsf{path}_a) \ne \LeafIndex(\mathsf{path}_e)$.
-The empty slot is not the admitter's own slot; the relation does
-not permit slot rotation.
+\item $\ell_a \ne \Empty$ and
+  $\MerkleVerify(\Cg, \Idx_a, \ell_a, \Pth_a) = 1$. By
+  \Cref{lem:merkle} (position binding), the value committed at
+  position $\Idx_a$ in $\Cg$ is uniquely determined up to
+  negligible probability, and that value is $\ell_a \ne \Empty$.
+  Hence position $\Idx_a$ in $\Cg$ holds a real (non-empty) leaf:
+  the admitter is a current member.
+\item $\MerkleVerify(\Cg, \Idx_e, \Empty, \Pth_e) = 1$. By the
+  same lemma, the value committed at position $\Idx_e$ in $\Cg$
+  is $\Empty$ up to negligible probability --- i.e., position
+  $\Idx_e$ was previously empty.
+\item $\Idx_a \ne \Idx_e$. The empty position is not the
+  admitter's, so the relation does not collapse into slot
+  rotation (\Cref{rem:slot}).
 \item $\ell^{\star} \ne \Empty$ and
-$\Cgp_{\star} = \WriteLeaf(\Cg, \mathsf{path}_e, \ell^{\star})$.
-The new state is obtained by writing a non-empty leaf at the
-previously-empty target slot, with all other leaves unchanged.
+  $\Cgp_{\star} = \MerkleRoot(\Idx_e, \ell^{\star}, \Pth_e)$.
+  Since $\Pth_e$ is the same sequence of sibling values that
+  combined with $\Empty$ at position $\Idx_e$ to yield $\Cg$,
+  recombining those siblings with $\ell^{\star}$ at the same
+  position produces the root of the tree obtained from $\Cg$ by
+  replacing position $\Idx_e$ alone, leaving every other
+  committed position unchanged (these other positions are pinned
+  by \Cref{lem:merkle} applied to each).
 \end{enumerate}
 
-Therefore $\Cgp_{\star}$ is the result of a genuine admission ---
-some current member writing a new, non-empty leaf at a
-previously-empty slot --- which is precisely what the relation
-allows, and \emph{not} the slot-overwrite degenerate
-case (\Cref{rem:slot}). This contradicts the win condition of
-\Cref{def:auth}.
+Therefore $\Cgp_{\star}$ commits to a tree that differs from
+$\Cg$ exactly at the previously-empty position $\Idx_e$, where
+the new value $\ell^{\star} \ne \Empty$ has been written by a
+current member at position $\Idx_a \ne \Idx_e$. This is a
+witness to membership of
+$(\Cg, \Cgp_{\star}, e, \texttt{sep-anarchy}; w_{\star})$ in
+$\RUpd^{\sep{anarchy}}$ --- contradicting the win condition of
+\Cref{def:auth}, which required \emph{no} such witness to exist.
 
 Hence $\varepsilon = \negl(\lambda)$, modulo the polynomial
 extraction loss of \Cref{lem:plonk-se} and the negligible
-collision-finding losses across the two invocations of
-\Cref{lem:merkle} (and the further reductions in
+collision-finding losses across the position-binding invocations
+of \Cref{lem:merkle} (and the further reductions in
 \Cref{lem:fs,lem:kzg}).
 \end{proof}
 
@@ -635,12 +778,35 @@ by the chain's mempool / consensus layer, which is outside the
 cryptographic scope of this paper.
 \end{remark}
 
-\begin{corollary}
+\begin{corollary}[Partial portability of the stack-level reductions]
 \label{cor:family}
-The same composition applies to the other four policies in the
-family by substituting the policy predicate inside $\RUpd$. The
-predicate is the only part of the proof that changes; the
-soundness of the underlying stack is invariant.
+The \emph{stack-level} reductions of \Cref{sec:reductions} ---
+\Cref{lem:kzg} (KZG binding), \Cref{lem:merkle}
+(position-binding Merkle soundness), \Cref{lem:fs}
+(Fiat--Shamir), and \Cref{lem:plonk-se}
+(simulation-extractable knowledge soundness for the deployed
+PLONK variant) --- apply unchanged to any policy that uses the
+same underlying cryptographic stack and the same Fiat--Shamir
+transcript discipline.
+
+The \emph{state-transition} portion of the argument
+(\Cref{thm:auth}'s enumerated steps 1--4) does \emph{not} carry
+over without re-derivation. Richer policies introduce
+additional in-circuit invariants: for example,
+$\sep{democracy}$ adds a quorum predicate and may require
+nullifiers to prevent vote double-counting; $\sep{oligarchy}$
+requires founder-set membership and a fixed-cardinality check;
+$\sep{oneonone}$ requires two co-signatures and an
+anti-double-use constraint; $\sep{tyranny}$ requires an
+admin-key check; policies that admit removal or rotation
+require revocation invariants and consistent role bookkeeping.
+Each such invariant changes the witness shape of $\RUpd$ and
+therefore changes the post-extraction reasoning that connects a
+satisfying witness to a permitted state transition. A
+soundness theorem for any such policy must redo the
+state-transition enumeration; the reusable content is the
+cryptographic stack beneath, not the predicate-specific
+analysis above it.
 \end{corollary}
 
 \Cref{fig:chain} summarises the chain of reductions visually.
@@ -817,11 +983,50 @@ by preprocessing the canonical \sep{anarchy} $\RUpd$ circuit
 under the Ethereum Foundation KZG SRS. A maliciously-deployed
 verifying key that uses an alternative SRS for which the deployer
 knows $\tau$ admits proofs that the contract accepts but which
-are unsound under the EF SRS. Users must verify the on-chain
-$\mathsf{vk}$ against the SHA-256 digest published with the
-release artifact; the digest verification is the user's
-responsibility, not the chain's, and the soundness theorem is
-silent on what happens when it is omitted.
+are unsound under the EF SRS.
+
+Trust in the supply chain can be reduced --- though not
+eliminated within the scope of this paper --- by the following
+deployment-side disciplines, in increasing order of
+trust-minimisation:
+\begin{enumerate}[label=(\alph*),leftmargin=2em]
+  \item \emph{Out-of-band digest publication.} The SHA-256
+    digest of $\mathsf{vk}$ is published with the release
+    artifact; each user verifies the on-chain $\mathsf{vk}$
+    against the published digest. This is the minimum
+    discipline and the only one strictly required by the
+    cryptographic-soundness statement, but it places the trust
+    on each individual user.
+  \item \emph{On-chain digest anchoring.} The verifying-key
+    digest is committed at contract-deployment time in an
+    immutable contract-storage slot (e.g., a release-tag
+    constant), and every relevant transaction additionally
+    checks $\mathsf{SHA\text{-}256}(\mathsf{vk}) = \mathsf{vk\_digest}$.
+    The chain itself then enforces vk integrity; users verify
+    only the digest constant, not the vk bytes.
+  \item \emph{Immutable verifier registry.} A separate
+    on-chain registry contract, deployed once and made
+    immutable, maps each canonical $(\text{relation}, \text{tier})$
+    pair to the verifying-key digest produced by deterministic
+    preprocessing of a published circuit source. Policy
+    contracts consult the registry rather than hard-coding
+    digests. This isolates the trust assumption to a single
+    audited deployment artifact.
+  \item \emph{Deterministic deployment-artifact derivation.}
+    The verifying key is derived deterministically from
+    (the SRS digest, the circuit source digest, the
+    preprocessing routine digest). Any party can re-derive
+    $\mathsf{vk}$ from public inputs alone and compare digests;
+    no trust in a release artifact is required. This is the
+    strongest discipline but requires fully reproducible
+    builds.
+\end{enumerate}
+\Cref{thm:auth} is silent on which of (a)--(d) the deployment
+chooses; what it requires is only that the on-chain $\mathsf{vk}$
+be the canonical one. Tightening the trust statement above the
+minimum (a) is a deployment-engineering question outside the
+cryptographic scope of this paper, but the choice is
+load-bearing for what the deployment can claim end-to-end.
 
 \paragraph{Epoch monotonicity is chain-state, not a circuit
 invariant.} \Cref{def:rupd} does not constrain the epoch $e$ in
