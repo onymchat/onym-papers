@@ -1,0 +1,164 @@
+% Local bibliography for the soundness whitepaper.
+%
+% Self-contained — every entry the paper cites lives here. We do
+% not symlink the larger SoK bibliography because several of its
+% note fields embed \ref{sec:cfg-*} calls targeting labels that
+% exist only in the SoK source tree.
+
+% ───────────────────────────────────────────────────────────────
+%  Primitives — original constructions and standards.
+% ───────────────────────────────────────────────────────────────
+
+@inproceedings{kate-2010-kzg,
+  author    = {Aniket Kate and Gregory M. Zaverucha and Ian Goldberg},
+  title     = {Constant-Size Commitments to Polynomials and Their Applications},
+  booktitle = {Advances in Cryptology — ASIACRYPT 2010},
+  pages     = {177--194},
+  year      = {2010},
+  doi       = {10.1007/978-3-642-17373-8_11}
+}
+
+@inproceedings{grassi-2021-poseidon,
+  author    = {Lorenzo Grassi and Dmitry Khovratovich and Christian Rechberger
+               and Arnab Roy and Markus Schofnegger},
+  title     = {Poseidon: A New Hash Function for Zero-Knowledge Proof Systems},
+  booktitle = {30th USENIX Security Symposium},
+  year      = {2021},
+  url       = {https://www.usenix.org/conference/usenixsecurity21/presentation/grassi}
+}
+
+@misc{grassi-2023-poseidon2,
+  author       = {Lorenzo Grassi and Dmitry Khovratovich and Markus Schofnegger},
+  title        = {Poseidon2: A Faster Version of the Poseidon Hash Function},
+  howpublished = {Cryptology ePrint Archive, Paper 2023/323},
+  year         = {2023},
+  url          = {https://eprint.iacr.org/2023/323}
+}
+
+@inproceedings{merkle-1989-tree,
+  author    = {Ralph C. Merkle},
+  title     = {A Certified Digital Signature},
+  booktitle = {Advances in Cryptology — CRYPTO '89},
+  pages     = {218--238},
+  year      = {1989},
+  doi       = {10.1007/0-387-34805-0_21}
+}
+
+@misc{nist-fips-180-4,
+  author       = {{National Institute of Standards and Technology}},
+  title        = {{FIPS} {PUB} 180-4: Secure Hash Standard ({SHS})},
+  year         = {2015},
+  month        = aug,
+  doi          = {10.6028/NIST.FIPS.180-4},
+  url          = {https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf}
+}
+
+@inproceedings{fiat-shamir-1986,
+  author    = {Amos Fiat and Adi Shamir},
+  title     = {How to Prove Yourself: Practical Solutions to Identification
+               and Signature Problems},
+  booktitle = {Advances in Cryptology — CRYPTO '86},
+  pages     = {186--194},
+  year      = {1986},
+  doi       = {10.1007/3-540-47721-7_12}
+}
+
+@inproceedings{shor-1994-quantum,
+  author    = {Peter W. Shor},
+  title     = {Algorithms for Quantum Computation: Discrete Logarithms
+               and Factoring},
+  booktitle = {35th Annual Symposium on Foundations of Computer Science},
+  pages     = {124--134},
+  year      = {1994},
+  doi       = {10.1109/SFCS.1994.365700}
+}
+
+% ───────────────────────────────────────────────────────────────
+%  Curve, proof system, ceremony, and host functions.
+% ───────────────────────────────────────────────────────────────
+
+@misc{bowe-2017-bls12381,
+  author       = {Sean Bowe},
+  title        = {{BLS12-381}: New zk-{SNARK} Elliptic Curve Construction},
+  year         = 2017,
+  month        = mar,
+  howpublished = {Electric Coin Company blog post, 11 March 2017},
+  note         = {\url{https://electriccoin.co/blog/new-snark-curve/}.
+                  Canonical attribution for the {BLS12-381} parameter
+                  choice; the underlying curve family follows
+                  Barreto--Lynn--Scott.}
+}
+
+@inproceedings{don-2019-fiat-shamir,
+  author    = {Jelle Don and Serge Fehr and Christian Majenz and
+                Christian Schaffner},
+  title     = {Security of the {F}iat-{S}hamir Transformation in the
+                Quantum Random-Oracle Model},
+  booktitle = {Advances in Cryptology -- {CRYPTO} 2019, Part {II}},
+  year      = 2019,
+  pages     = {356--383},
+  doi       = {10.1007/978-3-030-26951-7\_13},
+  note      = {{IACR} {ePrint} 2019/190,
+                \url{https://eprint.iacr.org/2019/190}.}
+}
+
+@misc{eth-kzg-ceremony,
+  author       = {{Ethereum Foundation} and {KZG Ceremony Contributors}},
+  title        = {{KZG} Summoning Ceremony},
+  year         = 2023,
+  howpublished = {\url{https://ceremony.ethereum.org/} and
+                  \url{https://github.com/ethereum/kzg-ceremony}},
+  note         = {Multi-party trusted setup ceremony for the BLS12-381
+                  KZG SRS used by Ethereum's EIP-4844 blob commitments.
+                  Final transcript records $\sim$141{,}000 contributors
+                  over Aug 2022 -- Nov 2023 (main contributor phase
+                  Jan 2023 -- Mar 2023). The same SRS is reused at
+                  Lagrange-basis cuts up to size $2^{28}$ by BLS12-381-
+                  targeted PLONK and Halo2 deployments.}
+}
+
+@misc{gabizon-2019-plonk,
+  author       = {Ariel Gabizon and Zachary J.\ Williamson and Oana Ciobotaru},
+  title        = {{PLONK}: Permutations over {L}agrange-bases for
+                  {O}ecumenical Noninteractive arguments of Knowledge},
+  year         = 2019,
+  howpublished = {Cryptology {ePrint} Archive, Paper 2019/953},
+  note         = {\url{https://eprint.iacr.org/2019/953}.}
+}
+
+@inproceedings{kim-barbulescu-2016,
+  author    = {Taechan Kim and Razvan Barbulescu},
+  title     = {Extended Tower Number Field Sieve: A New
+                Complexity for the Medium Prime Case},
+  booktitle = {Advances in Cryptology -- {CRYPTO} 2016},
+  year      = 2016,
+  doi       = {10.1007/978-3-662-53018-4\_20},
+  note      = {{IACR} {ePrint} 2016/526,
+                \url{https://eprint.iacr.org/2016/526}.
+                Effectively reduced the practical security of {BN254}
+                from $\sim$128 classical bits to $\sim$100.}
+}
+
+@misc{stellar-cap-0059,
+  author       = {Jay Geng},
+  title        = {{CAP-0059}: Host functions for {BLS12-381}},
+  year         = 2024,
+  howpublished = {Stellar Core Advancement Proposal, Final},
+  note         = {\url{https://github.com/stellar/stellar-protocol/blob/master/core/cap-0059.md}.
+                  Activated in Stellar Protocol 22. Adds host functions
+                  across $\mathbb{G}_1$, $\mathbb{G}_2$, $\mathbb{F}_r$
+                  scalar arithmetic, hash-to-curve, and the multi-pairing
+                  check that an on-chain PLONK verifier reduces to.}
+}
+
+@misc{stellar-cap-0075,
+  author       = {{Stellar Development Foundation}},
+  title        = {{CAP-0075}: Cryptographic Primitives for
+                  {P}oseidon and {P}oseidon2 Hash Functions},
+  year         = 2025,
+  howpublished = {Stellar Core Advancement Proposal, Final},
+  note         = {\url{https://github.com/stellar/stellar-protocol/blob/master/core/cap-0075.md}.
+                  Activated in Stellar Protocol 25. Adds {P}oseidon and
+                  {P}oseidon2 \emph{permutation} primitives over
+                  {BLS12-381}~$\mathbb{F}_r$ and {BN254}~$\mathbb{F}_r$.}
+}
