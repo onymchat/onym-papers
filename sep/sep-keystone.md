@@ -8,7 +8,7 @@ Status:     Draft
 Type:       Standard
 Created:    2026-05-17
 Updated:    2026-05-17
-Version:    0.1.0
+Version:    0.4.3
 Discussion: <TBD>
 Depends:    CAP-0059 (BLS12-381 host functions, activated in Protocol 22),
             CAP-0075 (Poseidon and Poseidon2 host functions, activated in Protocol 25)
@@ -251,9 +251,10 @@ The contract uses three Soroban storage tiers, used as follows.
 #### 4.3.1 Instance storage (singleton; small, cheap)
 
 ```rust
-enum InstanceKey {
-    ProtocolVersion, // u32, fixed to 1 in this SEP
-}
+// Instance storage is unused in v1 of this SEP. The protocol_version
+// view returns a hard-coded constant (see §4.4); no storage entry is
+// required. Reserved for future SEP revisions that may need instance
+// state.
 ```
 
 The contract has no admin, no paused flag, and no initialiser. The
@@ -271,6 +272,7 @@ enum PersistentKey {
 struct RelationRecord {
     vk: Bytes,                  // PLONK verifying-key bytes
     vk_digest: BytesN<32>,      // SHA-256(vk)
+    vk_digest_fr: BytesN<32>,   // H_bytes(VK_DIGEST_TAG_FR, vk_digest), computed once at register_relation
     pi_schema_hash: BytesN<32>, // Poseidon2 commitment to the extras schema; see §4.5
     extras_arity: u32,          // expected len() of the extras vector
     bootstrap_root: BytesN<32>, // initial C_g, immutable record
@@ -312,7 +314,10 @@ for proof-deserialisation scratch space but MUST NOT expose it.
 const MAX_EXTRAS_ARITY: u32 = 32;
 
 #[contract]
-pub trait Keystone {
+pub struct Keystone;
+
+#[contractimpl]
+impl Keystone {
     // ─── Registration ─────────────────────────────────────────────────────
 
     /// Authenticated by `registrant` but otherwise unrestricted: any
@@ -320,10 +325,10 @@ pub trait Keystone {
     /// a new relation under `tag` on behalf of `registrant`.
     ///
     /// After this call returns successfully, the registered tuple
-    /// `(tag, vk_digest, pi_schema_hash, extras_arity, bootstrap_root,
-    /// registrant)` is immutable. There is no equivalent of
-    /// `rotate_vk` and no privileged actor that can amend or evict a
-    /// registration.
+    /// `(tag, vk_digest, vk_digest_fr, pi_schema_hash, extras_arity,
+    /// bootstrap_root, registrant)` is immutable. There is no
+    /// equivalent of `rotate_vk` and no privileged actor that can
+    /// amend or evict a registration.
     ///
     /// Tag namespace is global and first-come-first-served. MUST call
     /// `registrant.require_auth()` before any state read or write, so
@@ -333,7 +338,10 @@ pub trait Keystone {
     /// `extras_arity > MAX_EXTRAS_ARITY`. MUST revert with `InvalidVk`
     /// if `vk` does not parse as a PLONK verifying key over BLS12-381
     /// with the public-input arity 5 fixed by this SEP (see §4.6).
-    fn register_relation(
+    /// MUST compute `vk_digest_fr = H_bytes(VK_DIGEST_TAG_FR, vk_digest)`
+    /// per §4.2.1 and store it in `RelationRecord` before returning;
+    /// the §4.7 transcript reads it from the record on every `apply`.
+    pub fn register_relation(
         env: Env,
         registrant: Address,
         tag: Symbol,
@@ -341,7 +349,7 @@ pub trait Keystone {
         pi_schema_hash: BytesN<32>,
         extras_arity: u32,
         bootstrap_root: BytesN<32>,
-    );
+    ) { /* … */ }
 
     // ─── Mutation ─────────────────────────────────────────────────────────
 
@@ -358,14 +366,14 @@ pub trait Keystone {
     /// revert with `MaxExtrasArityExceeded` if
     /// `extras.len() > MAX_EXTRAS_ARITY` before reading the relation
     /// record.
-    fn apply(
+    pub fn apply(
         env: Env,
         tag: Symbol,
         new_root: BytesN<32>,
         expected_epoch: u64,
         proof: Bytes,
         extras: Vec<BytesN<32>>,
-    );
+    ) { /* … */ }
 
     // ─── Maintenance ──────────────────────────────────────────────────────
 
@@ -375,32 +383,33 @@ pub trait Keystone {
     /// on success. Intended for relations that go quiet between
     /// `apply` calls; for active relations, `apply` does this
     /// implicitly.
-    fn bump_ttl(env: Env, tag: Symbol);
+    pub fn bump_ttl(env: Env, tag: Symbol) { /* … */ }
 
     // ─── Read-only views ──────────────────────────────────────────────────
 
-    fn current_root(env: Env, tag: Symbol) -> BytesN<32>;
-    fn current_epoch(env: Env, tag: Symbol) -> u64;
-    fn vk_digest(env: Env, tag: Symbol) -> BytesN<32>;
-    fn bootstrap_root(env: Env, tag: Symbol) -> BytesN<32>;
-    fn pi_schema_hash(env: Env, tag: Symbol) -> BytesN<32>;
-    fn extras_arity(env: Env, tag: Symbol) -> u32;
-    fn registrant(env: Env, tag: Symbol) -> Address;
-    fn is_registered(env: Env, tag: Symbol) -> bool;
+    pub fn current_root(env: Env, tag: Symbol) -> BytesN<32> { /* … */ }
+    pub fn current_epoch(env: Env, tag: Symbol) -> u64 { /* … */ }
+    pub fn vk_digest(env: Env, tag: Symbol) -> BytesN<32> { /* … */ }
+    pub fn vk_digest_fr(env: Env, tag: Symbol) -> BytesN<32> { /* … */ }
+    pub fn bootstrap_root(env: Env, tag: Symbol) -> BytesN<32> { /* … */ }
+    pub fn pi_schema_hash(env: Env, tag: Symbol) -> BytesN<32> { /* … */ }
+    pub fn extras_arity(env: Env, tag: Symbol) -> u32 { /* … */ }
+    pub fn registrant(env: Env, tag: Symbol) -> Address { /* … */ }
+    pub fn is_registered(env: Env, tag: Symbol) -> bool { /* … */ }
 
-    fn protocol_version(env: Env) -> u32;
+    pub fn protocol_version(_env: Env) -> u32 { 1 }
 }
 ```
 
-The trait has three mutating methods (`register_relation`, `apply`,
-`bump_ttl`) and **no privileged methods**. The contract is a pure
-verifier and state machine. `register_relation` is gated only by
-self-authentication of the `registrant` (so the registrant address is
-non-forgeable for indexer use); it is otherwise unrestricted. `apply`
-and `bump_ttl` require no authentication: `apply`'s authorisation is
-the proof itself, and `bump_ttl` is a maintenance operation. Users
-verify `(vk, bootstrap_root, pi_schema_hash)` out of band before
-trusting any tag (§1, §6).
+The contract exposes three mutating methods (`register_relation`, `apply`,
+`bump_ttl`) and **no privileged methods**. It is a pure verifier and
+state machine. `register_relation` is gated only by self-authentication
+of the `registrant` (so the registrant address is non-forgeable for
+indexer use); it is otherwise unrestricted. `apply` and `bump_ttl`
+require no authentication: `apply`'s authorisation is the proof itself,
+and `bump_ttl` is a maintenance operation. Users verify
+`(vk, bootstrap_root, pi_schema_hash)` out of band before trusting any
+tag (§1, §6).
 
 ### 4.5 Registered relations: predicate requirements and schema commitment
 
@@ -525,7 +534,7 @@ referenced in §4.2) before deriving any prover-message challenge:
 | Slot | Content                                                |
 |------|--------------------------------------------------------|
 | 0    | $\texttt{TRANSCRIPT\_TAG\_FR}$ (the domain constant defined in §4.2.1) |
-| 1    | $H_{\mathrm{bytes}}(\texttt{VK\_DIGEST\_TAG\_FR},\;\texttt{record.vk\_digest})$ — the 32-byte SHA-256 output of `vk` hashed into an Fr element under the canonical convention of §4.2.1 |
+| 1    | `record.vk_digest_fr` — the precomputed Fr embedding of the relation's `vk_digest`, derived once at registration per §4.4; see §4.2.1 for the derivation rule |
 | 2    | `record.pi_schema_hash`                                |
 | 3    | $t_{\mathrm{Fr}}$                                      |
 | 4    | $C_g$                                                  |
@@ -534,13 +543,12 @@ referenced in §4.2) before deriving any prover-message challenge:
 | 7    | $r_{\mathrm{ext}}$                                     |
 
 All eight slots are Fr elements serialised identically (32 bytes,
-big-endian per CAP-0059); slots 0 and 1 are derived via
-$H_{\mathrm{bytes}}$ (§4.2.1) — slot 0 is a constant per SEP version,
-slot 1 is constant per registered relation. Implementations MAY
-precompute slot 1 at `register_relation` time and cache it alongside
-`vk_digest`, but the spec does not normatively require this and
-event payloads continue to expose the raw `vk_digest` (32 bytes,
-SHA-256) for off-chain auditability.
+big-endian per CAP-0059); slot 0 is a constant per SEP version, and
+slot 1 is constant per registered relation (read directly from the
+immutable `RelationRecord`). Event payloads continue to expose the
+raw `vk_digest` (32 bytes, SHA-256) for off-chain auditability,
+alongside `vk_digest_fr` so indexers can verify the registrant's
+derivation without recomputing it (§4.11).
 
 No slot uses a direct 32-byte mod-$p$ embedding of a byte string;
 every byte-input slot routes through $H_{\mathrm{bytes}}$. This
@@ -639,23 +647,38 @@ Index sibling paths from the leaf level (level 0) up to the level
 immediately below the root (level $D - 1$). The compatibility
 constraint is:
 
-$$ \mathsf{path}_a[\ell] \;=\; \mathsf{path}_e[\ell] \qquad \text{for every } \ell \text{ with } h_{\mathrm{LCA}} \;<\; \ell \;\le\; D - 1. $$
+$$ \mathsf{path}_a[\ell] \;=\; \mathsf{path}_e[\ell] \qquad \text{for every } \ell \text{ with } h_{\mathrm{LCA}} \;\le\; \ell \;\le\; D - 1. $$
 
-At levels $0, 1, \ldots, h_{\mathrm{LCA}} - 1$ (strictly below the LCA),
-path entries are independent: the two leaves descend into disjoint
-subtrees, so their siblings at these levels share nothing. At level
-$h_{\mathrm{LCA}}$ exactly, path entries are NOT in general equal:
-$\mathsf{path}_a[h_{\mathrm{LCA}}]$ is the level-$h_{\mathrm{LCA}}$
-subtree root containing $\mathsf{idx}_e$, and
-$\mathsf{path}_e[h_{\mathrm{LCA}}]$ is the level-$h_{\mathrm{LCA}}$
-subtree root containing $\mathsf{idx}_a$ — these are the recomputed
-sibling values the predicate uses to compose the two-leaf update.
-At levels $h_{\mathrm{LCA}} + 1, \ldots, D - 1$ (strictly above the LCA),
-the two leaves share ancestors, hence siblings, and the path entries
-must be bit-identical.
+The three regions of $\ell \in \{0, \ldots, D - 1\}$ are:
 
-Implementations that omit the equality constraints at the levels
-above $h_{\mathrm{LCA}}$ are unsound: they allow the prover to "see"
+- **Independent**, $0 \le \ell \le h_{\mathrm{LCA}} - 2$: the two
+  leaves descend through disjoint subtrees at these levels; their
+  siblings share nothing. (Empty when $h_{\mathrm{LCA}} = 1$.)
+- **Cross-related**, $\ell = h_{\mathrm{LCA}} - 1$: at this level,
+  $\mathsf{path}_a[h_{\mathrm{LCA}} - 1]$ is $\mathsf{idx}_e$'s
+  ancestor at level $h_{\mathrm{LCA}} - 1$ — i.e., the other child
+  of the LCA — and $\mathsf{path}_e[h_{\mathrm{LCA}} - 1]$ is
+  $\mathsf{idx}_a$'s ancestor at the same level. These are NOT in
+  general equal; they are the recomputed sibling values the
+  predicate uses to compose the two-leaf update at the LCA boundary.
+- **Equal**, $h_{\mathrm{LCA}} \le \ell \le D - 1$: at and above the
+  LCA the two leaves share ancestors, hence siblings;
+  $\mathsf{path}_a[\ell]$ and $\mathsf{path}_e[\ell]$ MUST be
+  bit-identical. (Empty when $h_{\mathrm{LCA}} = D$.)
+
+For example, with $D = 4$, $\mathsf{idx}_a = 5$, $\mathsf{idx}_e = 6$:
+the LCA is at height $2$ (both leaves share
+$\lfloor \mathsf{idx} / 4 \rfloor = 1$), so $h_{\mathrm{LCA}} = 2$.
+Level $0$ is independent (siblings are leaves $4$ and $7$, in
+disjoint subtrees); level $1$ is cross-related
+($\mathsf{path}_a[1]$ is the level-$1$ node containing
+$\mathsf{idx}_e$, $\mathsf{path}_e[1]$ is the level-$1$ node
+containing $\mathsf{idx}_a$); levels $2$ and $3$ are equal (the
+LCA's sibling at level $2$ and the root's sibling-side child at
+level $3$ appear identically in both paths).
+
+Implementations that omit the equality constraints in the
+equal-region levels are unsound: they allow the prover to "see"
 two inconsistent versions of $C_g$ and produce a $C_g'$ that does
 not correspond to any single witness opening of the prior state.
 
@@ -753,7 +776,7 @@ the listed `Symbol` literal as the second topic.
 | Symbol               | Data                                                                                      | When emitted                          |
 |----------------------|-------------------------------------------------------------------------------------------|---------------------------------------|
 | `applied`            | `(tag: Symbol, prev_root: BytesN<32>, new_root: BytesN<32>, new_epoch: u64)`              | successful `apply`                    |
-| `relation_registered`| `(tag: Symbol, registrant: Address, vk_digest: BytesN<32>, pi_schema_hash: BytesN<32>, bootstrap_root: BytesN<32>, extras_arity: u32)` | successful `register_relation` |
+| `relation_registered`| `(tag: Symbol, registrant: Address, vk_digest: BytesN<32>, vk_digest_fr: BytesN<32>, pi_schema_hash: BytesN<32>, bootstrap_root: BytesN<32>, extras_arity: u32)` | successful `register_relation` |
 | `ttl_bumped`         | `(tag: Symbol, new_ttl_ledger: u32)`                                                      | successful `bump_ttl`                 |
 
 `relation_registered` carries the `registrant` address so indexers can
@@ -1112,6 +1135,12 @@ vector set published alongside this SEP, which exercises (at minimum):
   storage and view-function output;
 - `register_relation` bound check: `extras_arity > MAX_EXTRAS_ARITY` MUST
   revert `MaxExtrasArityExceeded` before any storage write;
+- **`vk_digest_fr` derivation at registration.** A `register_relation`
+  call MUST produce a `RelationRecord` whose `vk_digest_fr` field
+  equals `H_bytes(VK_DIGEST_TAG_FR, vk_digest)` per §4.2.1, and the
+  `relation_registered` event payload MUST include the same value.
+  A harness that recomputes `vk_digest_fr` from the event's
+  `vk_digest` and finds a mismatch MUST fail conformance;
 - `apply` happy path, including event emission, state advancement, and
   TTL extension of both `Relation(tag)` and `State(tag)` to *exactly* the
   network maximum (the conformance harness reads ledger-entry TTLs before
@@ -1129,14 +1158,18 @@ vector set published alongside this SEP, which exercises (at minimum):
 - transcript-discipline regression vectors. For each slot
   $i \in \{0, 1, 2, 3, 4, 5, 6, 7\}$, exactly one regression vector in
   which slots $i$ and $(i + 1) \bmod 8$ are transposed in the absorption
-  order, with every other slot unchanged. Eight vectors total, named
-  `tx_swap_0_1`, `tx_swap_1_2`, …, `tx_swap_7_0`. Each MUST revert
-  `InvalidProof`. The eight adjacent transpositions provide one
-  failure mode per slot index and unambiguous coverage of every
-  absorption position; comprehensive transcript-discipline coverage
-  is the load-bearing defence flagged in §5.12 (a 6-PI design would
-  catch only one of these eight failures, which is why the SEP
-  prefers PI-vector minimality plus exhaustive transcript vectors);
+  order, with every other slot unchanged. Eight vectors total: seven
+  linear adjacent transpositions named `tx_swap_0_1`, `tx_swap_1_2`,
+  `tx_swap_2_3`, `tx_swap_3_4`, `tx_swap_4_5`, `tx_swap_5_6`,
+  `tx_swap_6_7`, plus one cyclic wraparound transposition
+  `tx_swap_wrap_7_0` that swaps the last absorption slot with the
+  first. Each MUST revert `InvalidProof`. The eight adjacent
+  transpositions provide one failure mode per slot index and
+  unambiguous coverage of every absorption position; comprehensive
+  transcript-discipline coverage is the load-bearing defence flagged
+  in §5.12 (a 6-PI design would catch only one of these eight
+  failures, which is why the SEP prefers PI-vector minimality plus
+  exhaustive transcript vectors);
 - byte-to-Fr packing regression vectors: provide a `pi_schema_hash` and
   a `tag_fr` pair computed under the canonical 31-byte big-endian
   right-pad rule of §4.2.1, alongside the same pair computed under a
@@ -1165,6 +1198,16 @@ vector set published alongside this SEP, which exercises (at minimum):
   correctly).
 
 ## Appendix A. Known-answer values for the `*_TAG_FR` domain constants
+
+> **Normative status of this appendix in v0.4.3.** The five hex
+> values in the table below are placeholders. §A.2 makes them
+> prerequisite to every other conformance vector in §8;
+> consequently, **this SEP is not implementable end-to-end at
+> v0.4.3**. The placeholders are pinned in v0.5.0 once a reference
+> Poseidon2 implementation publishes the per-round intermediate-state
+> tables required by the §A.1 pinning procedure. Implementations
+> targeting v0.4.3 may stub the `*_TAG_FR` constants for development
+> but MUST NOT ship to mainnet against this version.
 
 The five domain-separation constants of §4.2.1 are derived once via
 $H_{\mathrm{bytes}}(\mathbf{0},\, \text{ASCII source string})$.
@@ -1230,6 +1273,32 @@ localise here.
 
 ## 9. Changelog
 
+- **0.4.3** (2026-05-17): Third external-reviewer pass — seven
+  targeted fixes. (1) **LCA formula off-by-one in §4.8.2(a)**
+  corrected: equality range is now $h_{\mathrm{LCA}} \le \ell \le D - 1$
+  (was $h_{\mathrm{LCA}} < \ell \le D - 1$), including the level at
+  the LCA itself where both paths share the LCA's sibling. (2) **LCA
+  prose rewritten** to identify the cross-related level as
+  $h_{\mathrm{LCA}} - 1$ (was incorrectly $h_{\mathrm{LCA}}$), with a
+  worked example for $D = 4$, $\mathsf{idx}_a = 5$, $\mathsf{idx}_e = 6$.
+  Implementations following v0.4.2 literally were still sound by
+  Poseidon2 collision resistance, but the spec text now matches what
+  an LCA-precise constraint actually requires. (3) **§4.4 contract
+  trait** rewritten to idiomatic Soroban `#[contract] struct` +
+  `#[contractimpl] impl` form instead of `#[contract] trait`, which
+  does not compile under the SDK. (4) **`InstanceKey::ProtocolVersion`
+  removed**; `protocol_version()` now returns the hard-coded constant
+  `1`, fixing the fresh-deployment read failure where the storage
+  entry was never initialised. (5) **§8 transcript permutation
+  vectors** split into seven linear adjacent transpositions plus one
+  explicit cyclic wraparound `tx_swap_wrap_7_0`, removing the
+  ambiguity in the prior `tx_swap_7_0` naming. (6) **Appendix A**
+  prefaced with an explicit non-implementability notice for v0.4.3
+  pending v0.5.0's pinned hex values. (7) **`vk_digest_fr` promoted
+  to a normative `RelationRecord` field**, computed once at
+  `register_relation` time, removing the per-`apply` sponge
+  recomputation; added matching view function, event-payload field,
+  and conformance vector.
 - **0.4.2** (2026-05-17): Four targeted reviewer fixes. (1)
   **§4.8.2(a) two-witness compatibility precision**: replaced the
   informal "where they intersect, they agree" with an explicit LCA
