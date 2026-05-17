@@ -1,9 +1,11 @@
-% Cryptographic Soundness of a SNARK-Gated Policy Contract
+% Cryptographic Soundness of a SNARK-Gated Group-Membership
+% Update Contract
 %
 % A focused whitepaper that traces the authorisation-soundness
-% claim of the simplest SEP-style policy contract — "any current
-% member admits" — down to base cryptographic assumptions, via a
-% compositional reduction.
+% claim of a SNARK-gated group-membership keystone — the general
+% "any current member admits a new leaf at a previously-empty
+% position" construction — down to base cryptographic
+% assumptions, via a compositional reduction.
 %
 % Build:  make           → main.pdf
 %         make clean
@@ -74,7 +76,6 @@
 \newcommand{\Cgp}{{C_g^{\prime}}}
 \newcommand{\RMem}{\mathsf{R}_{\mathsf{Mem}}}
 \newcommand{\RUpd}{\mathsf{R}_{\mathsf{Upd}}}
-\newcommand{\sep}[1]{\texttt{sep-#1}}
 \newcommand{\negl}{\mathsf{negl}}
 \newcommand{\Hash}{\mathsf{H}}
 \newcommand{\Poseidon}{\mathsf{Poseidon2}}
@@ -92,8 +93,8 @@
 \newcommand{\Pth}{\mathsf{path}}
 
 % ─── Title block (brand-neutral, no author) ──────────────────────────
-\title{Cryptographic Soundness of a SNARK-Gated Policy Contract:\\
-       A Compositional Proof Sketch for the \texttt{sep-anarchy} Setting}
+\title{Cryptographic Soundness of a SNARK-Gated Group-Membership Update Contract:\\
+       A Compositional Proof Sketch for the Keystone Construction}
 
 \author{}
 \date{}
@@ -104,10 +105,19 @@
 
 \begin{abstract}
 We give a compositional proof sketch for the authorisation
-soundness of the simplest membership-policy smart contract in a
-SNARK-gated group registry: \sep{anarchy}, in which any current
-group member may admit a new one. The contract sits on top of a
-fixed cryptographic stack --- the BLS12-381 curve, the KZG
+soundness of a SNARK-gated group-membership update contract --- a
+\emph{keystone construction} that maintains a public commitment
+to a membership set and admits state changes only via succinct
+non-interactive proofs of a fixed update relation. The relation
+analysed here encodes the general admission rule that any
+current group member may write any new leaf at a
+previously-empty position of the membership commitment, without
+quorum, founder set, or admin override; it is the most permissive
+admission rule consistent with cryptographic membership soundness,
+and richer policies (quorum, founder set, threshold, admin)
+tighten the predicate further but require their own
+state-transition analyses. The contract sits on top of a fixed
+cryptographic stack --- the BLS12-381 curve, the KZG
 polynomial-commitment scheme, the Poseidon2 algebraic hash, a
 binary Merkle commitment to the membership set, the Fiat--Shamir
 transform, and a specific PLONK variant for which
@@ -142,18 +152,26 @@ is well-formed under a published relation. The proof is verified
 on chain; the contract never needs to see the prover's witness.
 
 We focus on a concrete instance of this pattern: a group
-registry that maintains a public commitment $\Cg$ to a membership
-set and transitions $\Cg \mapsto \Cgp$ only when accompanied by a
-PLONK~\cite{gabizon-2019-plonk} proof of a fixed update relation
-$\RUpd$. The relation embeds a \emph{policy predicate} that
-constrains which witnesses are admissible; a small family of
-policy contracts ships in production, each compiling to a
-distinct $\RUpd$ instance. The simplest member of the family is
-\sep{anarchy}: \emph{any current member admits any new member,
-without quorum, founder set, or admin override}. We restrict our
-attention to this policy throughout. Its $\RUpd$ circuit is the
-smallest in the family and the easiest to reason about; results
-for the other four policies follow by replacing the predicate.
+registry that maintains a public commitment $\Cg$ to a
+membership set and transitions $\Cg \mapsto \Cgp$ only when
+accompanied by a PLONK~\cite{gabizon-2019-plonk} proof of a fixed
+update relation $\RUpd$. We call this construction the
+\emph{group-membership keystone}: a single relation that, when
+gated by the SNARK, defines who may extend the committed set and
+how.
+
+The keystone relation analysed in this paper encodes the
+most permissive admission rule that is still consistent with
+cryptographic membership soundness: \emph{any current member may
+admit any new leaf at a previously-empty position of the
+membership commitment}, with no quorum, founder set, or admin
+override. This minimum-predicate construction is the easiest to
+reason about, and it is the natural base case against which
+richer admission rules (quorum, founder set, threshold, admin,
+revocation) are variants. Each richer variant adds in-circuit
+invariants and therefore requires its own state-transition
+analysis (\Cref{cor:family}); the cryptographic-stack reductions
+below port unchanged.
 
 \paragraph{Contribution.} We make every link in the soundness
 chain explicit. For each cryptographic layer between the
@@ -165,11 +183,11 @@ precise statement of what fails first --- and what survives ---
 under a cryptographically-relevant quantum computer.
 
 \paragraph{Scope.} The paper covers cryptographic soundness
-only. We do not analyse the contract family's governance
-semantics, the messaging layer that sits above the registry, or
-the broader economic or operational properties of any
-deployment. Each layer of the stack has an established body of
-results behind it; we cite the original constructions rather
+only. We do not analyse the governance semantics of richer
+admission rules, the messaging layer that may sit above the
+registry, or the broader economic or operational properties of
+any deployment. Each layer of the stack has an established body
+of results behind it; we cite the original constructions rather
 than reproving them, and present only the composition.
 
 \paragraph{Outline.} \Cref{sec:system} fixes the stack and the
@@ -254,30 +272,35 @@ verifying-key supply chain.
 The PLONK verifier is implemented as a Soroban smart contract on
 Stellar, calling host functions for BLS12-381 group operations
 and pairings~\cite{stellar-cap-0059} and for Poseidon and
-Poseidon2~\cite{stellar-cap-0075}. The contract is policy-shaped:
-one contract per SEP, each holding the verifying key for the
-$\RUpd$ circuit specialised to its policy predicate.
+Poseidon2~\cite{stellar-cap-0075}. The verifier holds the
+verifying key for the $\RUpd$ circuit; richer admission rules
+would compile to distinct $\RUpd$ circuits and to distinct
+verifying keys, but the on-chain verification surface
+(pairing host functions, transcript replay) is identical across
+all such variants.
 
-\paragraph{The policy contract --- \sep{anarchy}.}
-The on-chain contract for \sep{anarchy} accepts a transaction
-$(\Cgp, \pi)$ and proceeds as follows. It checks that the public
-input encoded in $\pi$ matches its currently-stored root $\Cg$;
-it calls the on-chain PLONK verifier with the verifying key for
-the \sep{anarchy} $\RUpd$ circuit; if verification succeeds, it
-overwrites $\Cg \mapsto \Cgp$ in storage, increments an epoch
-counter, and emits an admission event. The policy predicate
-embedded in the $\RUpd$ circuit is the minimum that a meaningful
-admission rule can be: the prover must know a valid
-authentication path to some leaf in $\Cg$.
+\paragraph{The keystone contract.}
+The on-chain contract accepts a transaction $(\Cgp, \pi)$ and
+proceeds as follows. It checks that the public input encoded in
+$\pi$ matches its currently-stored root $\Cg$; it calls the
+on-chain PLONK verifier with the verifying key for the $\RUpd$
+circuit; if verification succeeds, it overwrites $\Cg \mapsto
+\Cgp$ in storage, increments an epoch counter, and emits an
+admission event. The predicate embedded in the $\RUpd$ circuit
+is the keystone predicate: a current member writes a new leaf at
+a previously-empty position. We analyse this predicate
+throughout; richer policies replace it with a tighter one
+(\Cref{cor:family}).
 
 \section{Threat model}
 \label{sec:threat}
 
 We adopt a standard SNARK adversary. The adversary $\Adv$ is a
 probabilistic polynomial-time algorithm. It is given the full
-public state of the system: the verifying keys for every
-policy's $\RUpd$ circuit, the current group commitment $\Cg$,
-the epoch counter, every event emitted to date, and the full
+public state of the system: the verifying key for the keystone
+$\RUpd$ circuit (and for any other circuit deployed alongside it
+under the same SRS), the current group commitment $\Cg$, the
+epoch counter, every event emitted to date, and the full
 structured reference string $\{[\tau^i]_1, [\tau^i]_2\}_{i=0}^{d}$
 (the SRS is public --- only the trapdoor $\tau$ is secret).
 $\Adv$ has read-only access to all prior transactions and may
@@ -348,17 +371,21 @@ asserts that position $\Idx$ in the tree of $\Cg$ holds leaf
 value $\ell$.
 \end{definition}
 
-\begin{definition}[\sep{anarchy} update relation $\RUpd$]
+\begin{definition}[Group-membership keystone update relation $\RUpd$]
 \label{def:rupd}
 Fix a sentinel field element $\Empty \in \Fr$ disjoint from the
 image of any honest leaf-construction routine the deployment
 uses; the deployment instantiates $\Empty$ as a fixed
-domain-separated constant. The relation
+domain-separated constant. Fix a domain-separation identifier
+$\mathsf{tag}_{\RUpd}$ that uniquely names this relation
+(distinct from any other circuit deployed under the same SRS;
+see \Cref{sec:notes}, ``Domain separation in Fiat--Shamir''). The
+relation
 \[
-\RUpd^{\sep{anarchy}}
+\RUpd
 = \left\{\bigl(\Cg, \Cgp, e, t;\; w\bigr) :
 \begin{aligned}
-   &t = \texttt{sep-anarchy} \\
+   &t = \mathsf{tag}_{\RUpd} \\
    &w = (\Idx_a,\, \ell_a,\, \Pth_a,\;
          \Idx_e,\, \ell^{\star},\, \Pth_e) \\
    &\ell_a \ne \Empty \\
@@ -429,12 +456,12 @@ relation. Implementations that require option~(ii) must
 re-derive a relation-specific soundness statement.
 \end{remark}
 
-\begin{definition}[Authorisation soundness of \sep{anarchy}]
+\begin{definition}[Authorisation soundness of the keystone contract]
 \label{def:auth}
 Let $\Pi = (\Setup, \Prove, \Verify)$ be the PLONK proof system
 instantiated on the stack of \Cref{sec:system}, and let
-$\mathsf{vk}$ be the verifying key for the \sep{anarchy} $\RUpd$
-circuit. Let $\Cg$ be the current on-chain commitment and $e =
+$\mathsf{vk}$ be the verifying key for the keystone $\RUpd$
+circuit of \Cref{def:rupd}. Let $\Cg$ be the current on-chain commitment and $e =
 \mathsf{self.epoch}$ the epoch the chain passes as a public input
 at verification time. The contract is \emph{authorisation-sound}
 if, for every probabilistic polynomial-time adversary $\Adv$ with
@@ -442,8 +469,8 @@ read-only access to every prior accepted proof on the chain,
 \[
 \Pr\!\left[
 \begin{aligned}
-&\Verify(\mathsf{vk}, (\Cg, \Cgp_{\star}, e, \texttt{sep-anarchy}), \pi_{\star}) = 1 \\
-&\wedge\; \nexists\, w :\; \bigl(\Cg, \Cgp_{\star}, e, \texttt{sep-anarchy}; w\bigr) \in \RUpd^{\sep{anarchy}}
+&\Verify(\mathsf{vk}, (\Cg, \Cgp_{\star}, e, \mathsf{tag}_{\RUpd}), \pi_{\star}) = 1 \\
+&\wedge\; \nexists\, w :\; \bigl(\Cg, \Cgp_{\star}, e, \mathsf{tag}_{\RUpd}; w\bigr) \in \RUpd
 \end{aligned}
 \;:\; (\Cgp_{\star}, \pi_{\star}) \leftarrow \Adv
 \right] \le \negl(\lambda).
@@ -687,11 +714,11 @@ different variant --- or even reordering the transcript --- voids
 \section{Composition theorem}
 \label{sec:theorem}
 
-\begin{theorem}[Authorisation soundness of \sep{anarchy}]
+\begin{theorem}[Authorisation soundness of the keystone contract]
 \label{thm:auth}
 Under \Cref{ass:sbdh}, \Cref{ass:p2cr}, and \Cref{ass:p2rom}, and
-in the algebraic group model, the \sep{anarchy} contract is
-authorisation-sound in the sense of \Cref{def:auth}.
+in the algebraic group model, the group-membership keystone
+contract is authorisation-sound in the sense of \Cref{def:auth}.
 \end{theorem}
 
 \begin{proof}[Proof sketch]
@@ -701,9 +728,9 @@ $\varepsilon$. By definition (\Cref{def:auth}), $\Adv$ has
 read-only access to every prior accepting proof published on
 the chain, and outputs $(\Cgp_{\star}, \pi_{\star})$ such that
 $\Verify(\mathsf{vk},
-(\Cg, \Cgp_{\star}, e, \texttt{sep-anarchy}), \pi_{\star}) = 1$
+(\Cg, \Cgp_{\star}, e, \mathsf{tag}_{\RUpd}), \pi_{\star}) = 1$
 and no witness for that statement exists in
-$\RUpd^{\sep{anarchy}}$.
+$\RUpd$.
 
 The simulation-extractable knowledge soundness of
 \Cref{lem:plonk-se} applies directly: an extractor
@@ -711,8 +738,8 @@ $\mathcal{E}^{\Adv}$ produces, with probability at least
 $\varepsilon - \negl(\lambda)$, a witness
 $w_{\star} = (\Idx_a, \ell_a, \Pth_a,\; \Idx_e, \ell^{\star},
 \Pth_e)$ such that
-$(\Cg, \Cgp_{\star}, e, \texttt{sep-anarchy}; w_{\star})
-\in \RUpd^{\sep{anarchy}}$. The lemma's quantification covers
+$(\Cg, \Cgp_{\star}, e, \mathsf{tag}_{\RUpd}; w_{\star})
+\in \RUpd$. The lemma's quantification covers
 adversaries that observe arbitrary prior accepting proofs ---
 whether produced honestly or by earlier adversarial submissions
 the chain accepted --- and rules out malleation of those proofs
@@ -722,7 +749,7 @@ or to model the chain history as a simulator oracle: the
 extractor's existence in \Cref{lem:plonk-se} already accounts
 for adversaries that observe the full chain history.
 
-The predicate of $\RUpd^{\sep{anarchy}}$ then gives:
+The predicate of $\RUpd$ then gives:
 \begin{enumerate}
 \item $\ell_a \ne \Empty$ and
   $\MerkleVerify(\Cg, \Idx_a, \ell_a, \Pth_a) = 1$. By
@@ -754,8 +781,8 @@ $\Cg$ exactly at the previously-empty position $\Idx_e$, where
 the new value $\ell^{\star} \ne \Empty$ has been written by a
 current member at position $\Idx_a \ne \Idx_e$. This is a
 witness to membership of
-$(\Cg, \Cgp_{\star}, e, \texttt{sep-anarchy}; w_{\star})$ in
-$\RUpd^{\sep{anarchy}}$ --- contradicting the win condition of
+$(\Cg, \Cgp_{\star}, e, \mathsf{tag}_{\RUpd}; w_{\star})$ in
+$\RUpd$ --- contradicting the win condition of
 \Cref{def:auth}, which required \emph{no} such witness to exist.
 
 Hence $\varepsilon = \negl(\lambda)$, modulo the polynomial
@@ -791,22 +818,32 @@ transcript discipline.
 
 The \emph{state-transition} portion of the argument
 (\Cref{thm:auth}'s enumerated steps 1--4) does \emph{not} carry
-over without re-derivation. Richer policies introduce
-additional in-circuit invariants: for example,
-$\sep{democracy}$ adds a quorum predicate and may require
-nullifiers to prevent vote double-counting; $\sep{oligarchy}$
-requires founder-set membership and a fixed-cardinality check;
-$\sep{oneonone}$ requires two co-signatures and an
-anti-double-use constraint; $\sep{tyranny}$ requires an
-admin-key check; policies that admit removal or rotation
-require revocation invariants and consistent role bookkeeping.
+over without re-derivation. Richer admission rules introduce
+additional in-circuit invariants. Representative examples:
+\begin{itemize}[leftmargin=2em]
+  \item a \emph{quorum-of-$N$} rule adds an aggregate-signature
+    or co-witness predicate and may require nullifiers to
+    prevent vote double-counting;
+  \item a \emph{fixed founder-set} rule requires founder-set
+    membership and a fixed-cardinality check;
+  \item a \emph{two-of-two} (or general $k$-of-$n$) co-signature
+    rule requires two (or $k$) co-witnesses and an
+    anti-double-use constraint;
+  \item an \emph{admin-key} rule requires a verifiable
+    admin-signature check against a hardcoded public key;
+  \item rules that admit \emph{removal}, \emph{rotation}, or
+    \emph{role transitions} require revocation invariants and
+    consistent role bookkeeping;
+  \item rules that promise \emph{identity uniqueness} require
+    an in-circuit non-membership witness for $\ell^{\star}$
+    against a sparse-Merkle or indexed-Merkle structure.
+\end{itemize}
 Each such invariant changes the witness shape of $\RUpd$ and
 therefore changes the post-extraction reasoning that connects a
-satisfying witness to a permitted state transition. A
-soundness theorem for any such policy must redo the
-state-transition enumeration; the reusable content is the
-cryptographic stack beneath, not the predicate-specific
-analysis above it.
+satisfying witness to a permitted state transition. A soundness
+theorem for any such variant must redo the state-transition
+enumeration; the reusable content is the cryptographic stack
+beneath, not the predicate-specific analysis above it.
 \end{corollary}
 
 \Cref{fig:chain} summarises the chain of reductions visually.
@@ -831,9 +868,9 @@ analysis above it.
 \node[layer,fill=blue!8,above=24mm of p2] (plonk)
    {PLONK proof system \quad (knowledge soundness, AGM)};
 \node[layer,fill=orange!18,above=of plonk] (rupd)
-   {$\RUpd^{\sep{anarchy}}$ circuit \quad (policy predicate satisfied)};
+   {$\RUpd$ circuit \quad (keystone predicate satisfied)};
 \node[layer,fill=orange!28,above=of rupd] (sep)
-   {\sep{anarchy} contract \quad (authorisation soundness)};
+   {keystone contract \quad (authorisation soundness)};
 
 \draw[dep] (curve.north) -- (kzg.south);
 \draw[dep] (kzg.north) -- (plonk.south);
@@ -915,13 +952,13 @@ a challenge derived in one transcript into another, defeating
 the soundness loss of \Cref{lem:fs}.
 
 \paragraph{Public-input absorption order.} Every public input
-($\Cg$, $\Cgp$, the epoch, the policy tag) must be absorbed into
-the transcript \emph{before} any verifier challenge is drawn from
-it. Missing absorptions admit proof-malleability attacks in
-which an adversary rewrites a public input in flight without
-invalidating the proof; published deployment postmortems
-document the operational cost of getting this
-wrong~\cite{don-2019-fiat-shamir}.
+($\Cg$, $\Cgp$, the epoch, the relation tag $\mathsf{tag}_{\RUpd}$)
+must be absorbed into the transcript \emph{before} any verifier
+challenge is drawn from it. Missing absorptions admit
+proof-malleability attacks in which an adversary rewrites a
+public input in flight without invalidating the proof; published
+deployment postmortems document the operational cost of getting
+this wrong~\cite{don-2019-fiat-shamir}.
 
 \paragraph{SRS provenance.} The reused KZG ceremony output must
 be hash-chained into the verifying-key supply chain using a
@@ -939,15 +976,17 @@ contract, not patching the deployed one. The proof of
 \Cref{thm:auth} treats $D$ as a fixed parameter; a dynamic $D$
 would require revisiting \Cref{lem:merkle}.
 
-\paragraph{Policy predicate scope.} The proof here is for
-\sep{anarchy}'s minimum predicate. The other policies in the
-family substitute richer predicates inside $\RUpd$, but the
-predicate's content does not enter \Cref{lem:plonk-se} or any layer
-below: it appears only in the final reduction step (the policy
-predicate inside $\RUpd^{\mathrm{policy}}$ implies the
-contract's authorisation property). \Cref{cor:family} therefore
-applies as long as the predicate is correctly compiled and the
-compilation is verified against the verifying-key digest.
+\paragraph{Predicate scope.} The proof here is for the
+keystone's minimum predicate (\Cref{def:rupd}). Richer admission
+rules substitute tighter predicates inside $\RUpd$, but the
+predicate's content does not enter \Cref{lem:plonk-se} or any
+layer below: it appears only in the final reduction step (the
+predicate implies the contract's authorisation property).
+\Cref{cor:family} therefore applies to any such variant
+provided the predicate is correctly compiled and the
+compilation is verified against the verifying-key digest --- and
+provided the variant's own state-transition argument has been
+re-derived.
 
 \paragraph{Identity uniqueness is not enforced by the predicate.}
 \Cref{def:rupd} constrains $\ell^{\star}$ to be non-empty but
@@ -955,7 +994,7 @@ does not require that $\ell^{\star}$ differ from any leaf already
 present in $\Cg$. A current member may therefore admit a value
 that already occurs elsewhere in the tree, or two distinct values
 that share an underlying identity key (with different blinding
-factors). This is intrinsic to the \sep{anarchy} predicate ---
+factors). This is intrinsic to the keystone predicate ---
 ``any current member admits any leaf'' --- and is by construction.
 Deployments that require one-identity-per-member must either
 enforce uniqueness out-of-band (e.g., via an external nullifier
@@ -979,8 +1018,8 @@ party voids \Cref{thm:auth}.
 The threat model (\Cref{sec:threat}) grants $\Adv$ read-only
 access to the deployed verifying keys. \Cref{thm:auth} therefore
 conditions on the on-chain $\mathsf{vk}$ being the one produced
-by preprocessing the canonical \sep{anarchy} $\RUpd$ circuit
-under the Ethereum Foundation KZG SRS. A maliciously-deployed
+by preprocessing the canonical keystone $\RUpd$ circuit under
+the Ethereum Foundation KZG SRS. A maliciously-deployed
 verifying key that uses an alternative SRS for which the deployer
 knows $\tau$ admits proofs that the contract accepts but which
 are unsound under the EF SRS.
@@ -1046,8 +1085,10 @@ cryptographic scope.
 \label{sec:conclusion}
 
 We presented a self-contained compositional sketch of the
-authorisation-soundness chain for the simplest membership-policy
-contract in a SNARK-gated group registry. Each layer of the
+authorisation-soundness chain for a SNARK-gated group-membership
+keystone contract --- the minimum-predicate construction in which
+any current member may admit any new leaf at a previously-empty
+position of the membership commitment. Each layer of the
 cryptographic stack contributes a single reduction; composing
 them gives a top-level soundness statement that is fully
 auditable against a small set of base assumptions: $d$-SBDH on
